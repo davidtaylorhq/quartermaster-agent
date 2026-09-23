@@ -211,13 +211,15 @@ jobs:
           HEAD_REF: ${{ steps.pr.outputs.head_ref }}
         run: |
           # The relay exists to police the push, not to serve the files: the
-          # sandbox clones from GitHub itself. Commits and trees are all the
-          # branch check and the lease need, and they arrive in a moment.
+          # sandbox clones from GitHub itself. It still takes whole objects.
+          # A partial clone here has to reach its promisor to forward a push,
+          # and a hook may not, so the push fails inside the quarantine that
+          # receive-pack runs it in.
           auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
           git init -q --bare "$RUNNER_TEMP/relay.git"
           git --git-dir="$RUNNER_TEMP/relay.git" \
             -c http.extraheader="AUTHORIZATION: basic $auth" \
-            fetch -q --depth 1 --filter=blob:none "${{ github.server_url }}/${{ github.repository }}.git" \
+            fetch -q --depth 1 "${{ github.server_url }}/${{ github.repository }}.git" \
             "+${{ steps.pr.outputs.ref }}:refs/heads/$HEAD_REF"
       - name: Clone the work tree
         if: steps.seen.outputs.ours == 'true'
