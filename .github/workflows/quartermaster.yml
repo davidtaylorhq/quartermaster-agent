@@ -133,6 +133,7 @@ jobs:
           fetch-depth: 1
           sparse-checkout: |
             scripts
+            dist
             agent
           path: quartermaster
           persist-credentials: false
@@ -146,7 +147,7 @@ jobs:
       - name: Read the model credentials
         env:
           PROVIDER_ENV: ${{ secrets.provider-env }}
-        run: quartermaster/scripts/provider-env "$RUNNER_TEMP/provider.env"
+        run: node quartermaster/dist/provider-env.js "$RUNNER_TEMP/provider.env"
 
       - name: Check out the project's configuration
         uses: actions/checkout@v7
@@ -169,7 +170,7 @@ jobs:
         run: |
           # A fault in this file stops the run now. Found later, the bot has
           # already told somebody it is working on their comment.
-          quartermaster/scripts/environments \
+          node quartermaster/dist/environments.js \
             "project/$ENVIRONMENTS" "$RUNNER_TEMP/environments.json"
           echo "ENVIRONMENTS_JSON=$RUNNER_TEMP/environments.json" >> "$GITHUB_ENV"
 
