@@ -19,7 +19,7 @@ test("start records every step with the first under way", () => {
   const state = join(dir, "progress.json");
   run(["start", "One", "Two", "Three"], state);
   assert.deepEqual(JSON.parse(readFileSync(state, "utf8")), {
-    labels: ["One", "Two", "Three"], at: 0, comment: undefined,
+    labels: ["One", "Two", "Three"], at: 0,
   });
   run(["next"], state);
   assert.equal(JSON.parse(readFileSync(state, "utf8")).at, 1);
