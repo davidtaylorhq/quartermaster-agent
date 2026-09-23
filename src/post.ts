@@ -11,8 +11,8 @@ import { request } from "./github.ts";
 // helped. Line comments do not carry it: once per review is a footer, on each
 // one it is noise.
 const FOOTER =
-  "<sub>:robot: AI generated response. " +
-  "Help us improve with a \u{1F44D} or \u{1F44E} reaction.</sub>";
+  '<div align="right"><sub>:robot: AI generated response - ' +
+  "help improve with \u{1F44D} or \u{1F44E}</sub></div>";
 
 const temp = process.env.RUNNER_TEMP!;
 const repo = process.env.GITHUB_REPOSITORY!;

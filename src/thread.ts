@@ -18,7 +18,15 @@ const TRUSTED = new Set(
 // The bot's own bookkeeping is not conversation. The checklist is recognised
 // by how it opens, which is also what it is: a sentence saying work has started.
 const NOISE = ["Superseded by a newer mention.", "The run failed.", "Starting…", "On it!"];
-const FOOTER_AT = "<sub>:robot:";
+// Both spellings of our signature: comments posted before it gained its
+// wrapper are still in the thread, and trimming at the inner one would leave
+// the outer tag behind.
+const FOOTERS = ['<div align="right"><sub>:robot:', "<sub>:robot:"];
+
+function withoutFooter(body: string): string {
+  const at = FOOTERS.map((f) => body.indexOf(f)).filter((i) => i !== -1);
+  return at.length === 0 ? body : body.slice(0, Math.min(...at)).trimEnd();
+}
 
 const skip = new Set((process.env.SKIP_COMMENT_IDS ?? "").split(" ").filter(Boolean));
 
@@ -41,10 +49,8 @@ if (kept.length > 0) {
   }
 
   for (const c of kept) {
-    let body = c.body.trim();
     // The signature is ours, not something anyone said.
-    const at = body.indexOf(FOOTER_AT);
-    if (at !== -1) body = body.slice(0, at).trimEnd();
+    let body = withoutFooter(c.body.trim());
     if (body.length > WIDTH) body = body.slice(0, WIDTH) + " […]";
 
     let who: string = c.user.login;
