@@ -27,12 +27,36 @@ in_sandbox() {
   docker exec -u agent -w /src -e HOME="$HOME_DIR" "$CONTAINER" "$@"
 }
 
+# A provider reached by running a command speaks to the runner instead, which
+# holds its credential. Reads of the repository stay on plain http, so only
+# https is sent that way.
+tunnel=()
+if [ -n "${MODEL_TUNNEL_HOSTS:-}" ]; then
+  tunnel=(
+    -e "HTTPS_PROXY=http://host.docker.internal:$MODEL_PORT"
+    -e "https_proxy=http://host.docker.internal:$MODEL_PORT"
+    -e "NO_PROXY=localhost,127.0.0.1,host.docker.internal"
+    -e "no_proxy=localhost,127.0.0.1,host.docker.internal"
+    -e "SSL_CERT_FILE=/usr/local/share/qm-bundle.crt"
+    -e "NODE_EXTRA_CA_CERTS=/usr/local/share/qm-ca.crt"
+  )
+fi
+
 log "booting $SANDBOX_IMAGE"
 docker run -d \
   --name "$CONTAINER" \
   --add-host "host.docker.internal:$BRIDGE_IP" \
   -v "$WORKTREE:/src" \
+  "${tunnel[@]}" \
   "$SANDBOX_IMAGE" >/dev/null
+
+if [ -n "${MODEL_TUNNEL_HOSTS:-}" ]; then
+  log "trusting the runner for $MODEL_TUNNEL_HOSTS"
+  docker cp "$MODEL_CA" "$CONTAINER:/usr/local/share/qm-ca.crt"
+  docker exec -u root "$CONTAINER" bash -c \
+    'cat /etc/ssl/certs/ca-certificates.crt /usr/local/share/qm-ca.crt \
+       > /usr/local/share/qm-bundle.crt'
+fi
 
 docker exec -u root -e STRIP="${PROVIDER_ENV_NAMES:-}" "$CONTAINER" bash -c '
   {

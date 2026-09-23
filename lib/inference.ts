@@ -33,63 +33,76 @@ export function target(
   };
 }
 
+export function refuse(
+  req: IncomingMessage,
+  res: ServerResponse,
+  status: number,
+  why: string
+) {
+  console.error(`${why}: ${req.method} ${req.url}`);
+  // Past the headers there is no status left to send, only a broken pipe.
+  if (res.headersSent) {
+    res.destroy();
+  } else {
+    res.writeHead(status, { "content-type": "text/plain" }).end(`${why}\n`);
+  }
+}
+
+export async function relay(
+  req: IncomingMessage,
+  res: ServerResponse,
+  to: string,
+  key: string
+) {
+  const headers: Record<string, string> = {};
+  for (const [name, value] of Object.entries(req.headers)) {
+    if (typeof value === "string" && !OURS.includes(name)) {
+      headers[name] = value.split(PLACEHOLDER).join(key);
+    }
+  }
+
+  const sends = req.method !== "GET" && req.method !== "HEAD";
+  try {
+    const answer = await fetch(to, {
+      method: req.method,
+      headers,
+      body: sends ? (Readable.toWeb(req) as ReadableStream) : undefined,
+      // A redirect would carry the credential wherever it pointed.
+      redirect: "manual",
+      // @ts-expect-error node takes this to stream a request body
+      duplex: "half",
+    });
+    if (answer.status >= 300 && answer.status < 400) {
+      return refuse(req, res, 502, "upstream redirected");
+    }
+
+    res.writeHead(answer.status, {
+      "content-type":
+        answer.headers.get("content-type") ?? "application/octet-stream",
+    });
+    if (!answer.body) {
+      return res.end();
+    }
+    await pipeline(Readable.fromWeb(answer.body as never), res);
+  } catch (error) {
+    console.error(error);
+    refuse(req, res, 502, "upstream unreachable");
+  }
+}
+
 export function handler(routes: Routes) {
   return async (req: IncomingMessage, res: ServerResponse) => {
-    const fail = (status: number, why: string) => {
-      console.error(`${why}: ${req.method} ${req.url}`);
-      // Past the headers there is no status left to send, only a broken pipe.
-      if (res.headersSent) {
-        res.destroy();
-      } else {
-        res.writeHead(status, { "content-type": "text/plain" }).end(`${why}\n`);
-      }
-    };
-
     const found = target(routes, req.url ?? "");
     if (!found) {
-      return fail(403, "no model behind that path");
+      return refuse(req, res, 403, "no model behind that path");
     }
-
-    const headers: Record<string, string> = {};
-    for (const [name, value] of Object.entries(req.headers)) {
-      if (typeof value === "string" && !OURS.includes(name)) {
-        headers[name] = value.split(PLACEHOLDER).join(found.key);
-      }
-    }
-
-    const sends = req.method !== "GET" && req.method !== "HEAD";
-    try {
-      const answer = await fetch(found.to, {
-        method: req.method,
-        headers,
-        body: sends ? (Readable.toWeb(req) as ReadableStream) : undefined,
-        // A redirect would carry the credential wherever it pointed.
-        redirect: "manual",
-        // @ts-expect-error node takes this to stream a request body
-        duplex: "half",
-      });
-      if (answer.status >= 300 && answer.status < 400) {
-        return fail(502, "upstream redirected");
-      }
-
-      res.writeHead(answer.status, {
-        "content-type":
-          answer.headers.get("content-type") ?? "application/octet-stream",
-      });
-      if (!answer.body) {
-        return res.end();
-      }
-      await pipeline(Readable.fromWeb(answer.body as never), res);
-    } catch (error) {
-      console.error(error);
-      fail(502, "upstream unreachable");
-    }
+    await relay(req, res, found.to, found.key);
   };
 }
 
 // term-llm only honours `base_url` for some of its providers, and a model can
-// only be reached through this proxy if it does. For every other provider the
-// key still goes into the sandbox.
+// only be reached through a path here if it does. A provider it runs as a
+// command is reached through the tunnel instead.
 export const UPSTREAM: Record<string, { provider: string; upstream: string }> =
   {
     ANTHROPIC_API_KEY: {
@@ -97,3 +110,9 @@ export const UPSTREAM: Record<string, { provider: string; upstream: string }> =
       upstream: "https://api.anthropic.com",
     },
   };
+
+// A credential carried by a command term-llm runs, which no configuration can
+// redirect. The host it talks to is intercepted instead.
+export const TUNNELLED: Record<string, string> = {
+  CLAUDE_CODE_OAUTH_TOKEN: "api.anthropic.com",
+};

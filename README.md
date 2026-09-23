@@ -106,9 +106,17 @@ term-llm also reads `op://` for 1Password, `file://`, `srv://` and `$(...)` in a
 
 They are masked before they reach a log, never written into the docker command line, and kept out of `$GITHUB_ENV`.
 
-A provider the runner can stand in front of never has its key in the sandbox at all. The sandbox is given a placeholder, the provider's `base_url` points back at the runner, and a proxy there puts the real key in on the way out. Anthropic works this way today.
+A provider the runner can stand in front of never has its key in the sandbox at all. The sandbox carries a placeholder, and the runner puts the real key back on the way out. There are two ways it stands in front.
 
-term-llm honours `base_url` for only some of its providers, and one reached by running a command rather than over HTTP cannot be redirected at all. Those providers still get their key. It reaches term-llm's own environment, because a provider that shells out reads it from there. Every shell command the agent runs is stripped of it: term-llm starts each one with `$SHELL`, which is a shell of ours that drops those names first.
+The first is over HTTP. The provider's `base_url` points at the runner, and a proxy there forwards what arrives. Anthropic works this way.
+
+The second is a tunnel, for a provider term-llm reaches by running a command. No configuration can redirect one of those, so the sandbox trusts a certificate the runner mints for the run, and `HTTPS_PROXY` sends the connection back to be terminated there. A Claude subscription works this way, through the Claude CLI. The command still speaks for itself and is not changed; all that moves is where its credential is held.
+
+Only the hosts a tunnelled provider needs are accepted. Anything else is refused, so this is not a way out of the sandbox.
+
+The tunnel does mean the runner can read the sandbox's traffic to those hosts. Reads of the repository go over plain HTTP to the forwarder, so they never take that path.
+
+term-llm honours `base_url` for only some of its providers. Any other provider still gets its key, and it reaches term-llm's own environment, because a provider that shells out reads it from there. Every shell command the agent runs is stripped of it: term-llm starts each one with `$SHELL`, which is a shell of ours that drops those names first.
 
 What remains for those is that the agent's own process holds the key. Nothing checks what it writes, and there is no egress filtering, so a determined prompt injection could put it in a reply or send it somewhere.
 

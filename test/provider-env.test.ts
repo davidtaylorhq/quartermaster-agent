@@ -48,8 +48,8 @@ test("every value is masked before anything can echo it", () => {
 });
 
 test("the names are logged and the values are not", () => {
-  const { stdout } = read("CLAUDE_CODE_OAUTH_TOKEN=sk-secret-value\n");
-  assert.match(stdout, /given to the sandbox: CLAUDE_CODE_OAUTH_TOKEN/);
+  const { stdout } = read("MISTRAL_API_KEY=sk-secret-value\n");
+  assert.match(stdout, /given to the sandbox: MISTRAL_API_KEY/);
   assert.doesNotMatch(
     stdout
       .split("\n")
@@ -73,15 +73,39 @@ test("a provider the proxy can reach keeps its key here", () => {
   const { file, routes, stdout } = read("ANTHROPIC_API_KEY=sk-ant-secret\n");
   assert.equal(file, `ANTHROPIC_API_KEY=${PLACEHOLDER}\n`);
   assert.deepEqual(JSON.parse(routes), {
-    anthropic: { upstream: "https://api.anthropic.com", key: "sk-ant-secret" },
+    routes: {
+      anthropic: {
+        upstream: "https://api.anthropic.com",
+        key: "sk-ant-secret",
+      },
+    },
+    tunnels: {},
   });
   assert.match(stdout, /reached through the proxy: anthropic/);
+});
+
+test("a provider run as a command keeps its key here too", () => {
+  const { file, routes, exported, stdout } = read(
+    "CLAUDE_CODE_OAUTH_TOKEN=oat-secret\n"
+  );
+  assert.equal(file, `CLAUDE_CODE_OAUTH_TOKEN=${PLACEHOLDER}\n`);
+  assert.deepEqual(JSON.parse(routes), {
+    routes: {},
+    tunnels: {
+      "api.anthropic.com": {
+        upstream: "https://api.anthropic.com",
+        key: "oat-secret",
+      },
+    },
+  });
+  assert.match(stdout, /reached through the tunnel: api\.anthropic\.com/);
+  assert.match(exported, /MODEL_TUNNEL_HOSTS=api\.anthropic\.com/);
 });
 
 test("a provider the proxy cannot reach still goes to the sandbox", () => {
   const { file, routes } = read("OPENAI_API_KEY=sk-openai-secret\n");
   assert.equal(file, "OPENAI_API_KEY=sk-openai-secret\n");
-  assert.deepEqual(JSON.parse(routes), {});
+  assert.deepEqual(JSON.parse(routes), { routes: {}, tunnels: {} });
 });
 
 test("carriage returns from a pasted secret are dropped", () => {
