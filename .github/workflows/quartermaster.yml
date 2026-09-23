@@ -191,6 +191,28 @@ jobs:
               IS_PULL_REQUEST: ${{ github.event.issue.pull_request && 'yes' || 'no' }}
               DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
             run: quartermaster/src/resolve.ts
+
+          - name: Check out the project's configuration
+            if: steps.seen.outputs.ours == 'true'
+            uses: actions/checkout@v7
+            with:
+              # The default branch, never the pull request head. What this says
+              # decides what runs on the runner, so a pull request must not be
+              # able to choose it.
+              ref: ${{ github.event.repository.default_branch }}
+              fetch-depth: 1
+              sparse-checkout: |
+                ${{ inputs.environments }}
+                ${{ inputs.term-llm-config }}
+              sparse-checkout-cone-mode: false
+              path: project
+              persist-credentials: false
+
+          - name: Pull the sandbox image
+            if: steps.seen.outputs.ours == 'true'
+            env:
+              SANDBOX_IMAGE: ghcr.io/${{ steps.self.outputs.repo }}/sandbox:latest
+            run: docker pull "$SANDBOX_IMAGE"
       - name: Name the agent
         if: steps.seen.outputs.ours == 'true'
         run: |
@@ -202,21 +224,6 @@ jobs:
         env:
           PROVIDER_ENV: ${{ secrets.provider-env }}
         run: quartermaster/src/provider-env.ts "$RUNNER_TEMP/provider.env"
-      - name: Check out the project's configuration
-        if: steps.seen.outputs.ours == 'true'
-        uses: actions/checkout@v7
-        with:
-          # The default branch, never the pull request head. What this says
-          # decides what runs on the runner, so a pull request must not be
-          # able to choose it.
-          ref: ${{ github.event.repository.default_branch }}
-          fetch-depth: 1
-          sparse-checkout: |
-            ${{ inputs.environments }}
-            ${{ inputs.term-llm-config }}
-          sparse-checkout-cone-mode: false
-          path: project
-          persist-credentials: false
       - name: Read the project's development environments
         if: steps.seen.outputs.ours == 'true'
         env:
@@ -259,12 +266,6 @@ jobs:
                 -c http.extraheader="AUTHORIZATION: basic $auth" \
                 fetch -q --depth 1 "${{ github.server_url }}/${{ github.repository }}.git" \
                 "+${{ steps.pr.outputs.ref }}:refs/heads/$HEAD_REF"
-
-          - name: Pull the sandbox image
-            if: steps.seen.outputs.ours == 'true'
-            env:
-              SANDBOX_IMAGE: ghcr.io/${{ steps.self.outputs.repo }}/sandbox:latest
-            run: docker pull "$SANDBOX_IMAGE"
       - name: Stand up the host services
         if: steps.seen.outputs.ours == 'true'
         env:

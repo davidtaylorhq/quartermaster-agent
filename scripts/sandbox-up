@@ -90,7 +90,7 @@ fi
 log "cloning the branch"
 as_agent "
   set -e
-  git clone -q --depth 1 --branch "\$HEAD_REF" ssh://$GATE_USER@host.docker.internal/relay.git /src
+  git -c checkout.workers=0 clone -q --depth 1 --branch "\$HEAD_REF" ssh://$GATE_USER@host.docker.internal/relay.git /src
   cd /src
   git config user.name  "$BOT_NAME"
   git config user.email "$BOT_NAME@users.noreply.github.com"
