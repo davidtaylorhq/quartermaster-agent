@@ -15,7 +15,8 @@ RUN useradd -u 1000 -m -d /home/agent -s /bin/bash agent \
 USER agent
 ENV PATH=/home/agent/.local/bin:$PATH
 # A later layer cannot remove what an earlier one shipped.
-RUN curl -fsSL "https://raw.githubusercontent.com/samsaffron/term-llm/${TERM_LLM_VERSION}/install.sh" | sh \
+RUN curl -fsSL "https://raw.githubusercontent.com/samsaffron/term-llm/${TERM_LLM_VERSION}/install.sh" \
+      | sh -s -- --version "$TERM_LLM_VERSION" \
  && curl -fsSL https://claude.ai/install.sh | bash \
  && rm -rf /home/agent/.cache /tmp/* /var/tmp/*
 

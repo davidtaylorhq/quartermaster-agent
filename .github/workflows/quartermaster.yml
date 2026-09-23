@@ -266,10 +266,10 @@ jobs:
           persist-credentials: false
       - name: Name the agent
         if: steps.seen.outputs.ours == 'true'
+        env:
+          GIVEN: ${{ inputs.bot-name }}
         run: |
-          name='${{ inputs.bot-name }}'
-          [ -n "$name" ] || name="${MENTION#@}"
-          echo "BOT_NAME=$name" >> "$GITHUB_ENV"
+          echo "BOT_NAME=${GIVEN:-${MENTION#@}}" >> "$GITHUB_ENV"
       - name: Read the model credentials
         if: steps.seen.outputs.ours == 'true'
         env:

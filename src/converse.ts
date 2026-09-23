@@ -42,27 +42,26 @@ function ask(prompt: string, resume: boolean): number {
     rmSync(join(temp, leftover), { force: true });
   }
 
-  const command = [
-    "term-llm ask",
-    "--agent quartermaster",
-    process.env.PROVIDER ? `--provider "${process.env.PROVIDER}"` : "",
-    `--session-db ${sandbox.home}/session.db`,
-    resume ? "--resume" : "",
-    "--yolo --text --stats",
-    `--max-turns ${process.env.MAX_TURNS}`,
-    `--timeout ${process.env.AGENT_TIMEOUT}`,
-    '"$QM_PROMPT"',
-  ].filter(Boolean).join(" ");
+  const term = [
+    `${sandbox.home}/.local/bin/term-llm`, "ask",
+    "--agent", "quartermaster",
+    ...(process.env.PROVIDER ? ["--provider", process.env.PROVIDER] : []),
+    "--session-db", `${sandbox.home}/session.db`,
+    ...(resume ? ["--resume"] : []),
+    "--yolo", "--text", "--stats",
+    "--max-turns", process.env.MAX_TURNS!,
+    "--timeout", process.env.AGENT_TIMEOUT!,
+    prompt,
+  ];
 
   const run = spawnSync("docker", [
     "exec", "-i", "-u", "agent", "-w", "/src",
     "-e", `HOME=${sandbox.home}`,
+    "-e", `PATH=${sandbox.home}/.local/bin:/usr/local/bin:/usr/bin:/bin`,
     "-e", `GIT_SSH_COMMAND=ssh ${sandbox.sshOptions}`,
     "-e", "SHELL=/usr/local/bin/qm-shell",
-    "-e", `QM_PROMPT=${prompt}`,
     ...sandbox.credentials.flatMap((name) => ["-e", name]),
-    sandbox.container, "bash", "-lc",
-    `export PATH="$HOME/.local/bin:$PATH"; ${command} 2>&1`,
+    sandbox.container, ...term,
   ], { stdio: ["ignore", "inherit", "inherit"] });
 
   for (const produced of ["finish.json", "findings.jsonl"]) {
