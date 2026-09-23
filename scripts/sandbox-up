@@ -1,13 +1,13 @@
 #!/bin/bash
 # Build the sandbox the agent works in.
 #
-# Git, ssh and term-llm, nothing mounted from the runner. The work tree is a
-# docker volume the development environment mounts too.
+# Git, ssh and term-llm. The work tree was cloned while the image was pulling;
+# the development environment mounts the same directory.
 set -Eeuo pipefail
 
 : "${RUNNER_TEMP:?}" "${BRIDGE_IP:?}" "${SSH_PORT:?}"
 : "${CLIENT_KEY:?}" "${HEAD_REF:?}" "${AGENT_DIR:?}"
-: "${GATE_USER:?}" "${SKILLS_DIR:?}" "${SANDBOX_IMAGE:?}" "${WORKTREE_VOLUME:?}"
+: "${GATE_USER:?}" "${SKILLS_DIR:?}" "${SANDBOX_IMAGE:?}" "${WORKTREE:?}"
 : "${FORWARD_PORT:?}" "${GITHUB_REPOSITORY:?}"
 : "${MCP_TEMPLATE:?}"
 
@@ -48,9 +48,8 @@ log "booting $SANDBOX_IMAGE"
 docker run -d \
   --name "$CONTAINER" \
   --add-host "host.docker.internal:$BRIDGE_IP" \
-  -v "$WORKTREE_VOLUME:/src" \
+  -v "$WORKTREE:/src" \
   "$SANDBOX_IMAGE" >/dev/null
-docker exec -u root "$CONTAINER" chown agent:agent /src
 
 docker exec -u root -e STRIP="${PROVIDER_ENV_NAMES:-}" "$CONTAINER" bash -c '
   {
@@ -88,15 +87,14 @@ WRAP
   "
 fi
 
-# Reads come from GitHub through the forwarder, which holds the credential the
-# sandbox must not. Writes go to the gate, where the relay's hooks decide what
-# reaches the branch.
-log "cloning the branch"
+# The clone already happened on the runner. What it could not know is where the
+# sandbox reaches the world from: reads through the forwarder, which holds the
+# credential the sandbox must not, and writes through the gate, where the
+# relay's hooks decide what reaches the branch.
+log "pointing the work tree at the gate"
 as_agent "
   set -e
-  git -c checkout.workers=0 clone -q --depth 1 --branch "\$HEAD_REF" \
-    http://host.docker.internal:$FORWARD_PORT/$GITHUB_REPOSITORY.git /src
-  cd /src
+  git remote set-url origin http://host.docker.internal:$FORWARD_PORT/$GITHUB_REPOSITORY.git
   git remote set-url --push origin ssh://$GATE_USER@host.docker.internal/relay.git
   git config user.name  "$BOT_NAME"
   git config user.email "$BOT_NAME@users.noreply.github.com"

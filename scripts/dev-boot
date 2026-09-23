@@ -52,7 +52,7 @@ CMD=$(field cmd)
 SETUP=$(field setup)
 
 note "starting $IMAGE"
-args=(run -d --name "$CONTAINER" -v "$WORKTREE_VOLUME:$MOUNT" -w "$MOUNT")
+args=(run -d --name "$CONTAINER" -v "$WORKTREE:$MOUNT" -w "$MOUNT")
 [ -n "$ENTRYPOINT" ] && args+=(--entrypoint "$ENTRYPOINT")
 args+=("$IMAGE")
 [ -n "$CMD" ] && args+=("$CMD")

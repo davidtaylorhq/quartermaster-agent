@@ -14,10 +14,9 @@ PUSHED="$RUNNER_TEMP/relay.pushed"
 SSH_PORT=2222
 FORWARD_PORT=2223
 MCP_IMAGE=ghcr.io/github/github-mcp-server:v1.12.2
-WORKTREE_VOLUME=quartermaster-worktree
+WORKTREE=$RUNNER_TEMP/worktree
 
 step "preparing $STATE"
-docker volume create "$WORKTREE_VOLUME" >/dev/null
 
 # Fetch it now, while the sandbox is being built, rather than on first use.
 nohup docker pull -q "$MCP_IMAGE" > "$RUNNER_TEMP/mcp-pull.log" 2>&1 &
@@ -51,7 +50,7 @@ put GITHUB_PERSONAL_ACCESS_TOKEN "$GH_TOKEN"
 put GH_TOKEN "$GH_TOKEN"
 put GITHUB_TOOLSETS "${GITHUB_TOOLSETS:-pull_requests,issues}"
 put GITHUB_READ_ONLY 1
-put WORKTREE_VOLUME "$WORKTREE_VOLUME"
+put WORKTREE "$WORKTREE"
 put PROGRESS "$PROGRESS_SCRIPT"
 put ENVIRONMENTS "$STATE/environments.json"
 put ASSET_REPO "$ASSET_REPO"
@@ -166,7 +165,7 @@ ss -tln | grep ":$SSH_PORT" >&2 || echo "[host] nothing on $SSH_PORT" >&2
   echo "FORWARD_PORT=$FORWARD_PORT"
   echo "CLIENT_KEY=$STATE/clientkey"
   echo "GATE_USER=$(id -un)"
-  echo "WORKTREE_VOLUME=$WORKTREE_VOLUME"
+  echo "WORKTREE=$WORKTREE"
 } >> "$GITHUB_ENV"
 
 echo "gate on $bridge:$SSH_PORT"
