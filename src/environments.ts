@@ -3,7 +3,7 @@
 //
 // A fault here stops the run before the bot has claimed anybody's comment.
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { load } from "js-yaml";
+import { load } from "../vendor/js-yaml.mjs";
 
 const KNOWN = ["name", "description", "image", "entrypoint", "cmd", "user", "mount", "setup"] as const;
 type Field = (typeof KNOWN)[number];

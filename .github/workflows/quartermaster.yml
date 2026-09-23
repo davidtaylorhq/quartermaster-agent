@@ -131,13 +131,10 @@ jobs:
           sparse-checkout: |
             scripts
             src
+            vendor
             agent
           path: quartermaster
           persist-credentials: false
-
-      - name: Install what the scripts need
-        working-directory: quartermaster
-        run: npm ci --omit=dev --silent --no-audit --no-fund
 
       - name: Name the agent
         run: |
