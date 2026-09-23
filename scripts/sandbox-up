@@ -1,13 +1,8 @@
 #!/bin/bash
 # Build the sandbox the agent works in.
 #
-# The sandbox is deliberately small: git, ssh and term-llm. It holds no
-# credentials and mounts nothing from the runner. The work tree is a docker
-# volume, which the development environment mounts too if the agent ever needs
-# one, so a run that only answers a question never waits for it.
-#
-# It writes what the conversation needs to reach back into it, and stops
-# there: talking to the agent is a separate thing with a loop of its own.
+# Git, ssh and term-llm, nothing mounted from the runner. The work tree is a
+# docker volume the development environment mounts too.
 set -Eeuo pipefail
 
 : "${RUNNER_TEMP:?}" "${BRIDGE_IP:?}" "${SSH_PORT:?}"
@@ -22,10 +17,8 @@ SSH_OPTS="-i $HOME_DIR/.ssh/gate -p $SSH_PORT -o StrictHostKeyChecking=no -o Use
 
 log() { echo "[sandbox] $*" >&2; }
 
-# The model's credentials have to be in term-llm's environment, because a
-# provider that shells out reads them from there. Nothing the agent runs has
-# any use for them, and term-llm starts every shell tool call with $SHELL, so
-# a shell of our own takes them back out again.
+# A provider that shells out reads its credentials from term-llm's environment.
+# term-llm starts every shell tool call with $SHELL, so ours drops them again.
 creds=()
 if [ -n "${PROVIDER_ENV_FILE:-}" ] && [ -s "$PROVIDER_ENV_FILE" ]; then
   set -a
@@ -81,9 +74,8 @@ docker cp "$CLIENT_KEY" "$CONTAINER:$HOME_DIR/.ssh/gate"
 docker exec -u root "$CONTAINER" chown agent:agent "$HOME_DIR/.ssh/gate"
 docker exec -u root "$CONTAINER" chmod 600 "$HOME_DIR/.ssh/gate"
 
-# The sandbox has git and little else. Anything more runs in one of the
-# project's development environments, named on the command line, so both the
-# agent and the log say where a command actually ran.
+# Anything needing more than git runs in a named development environment, so
+# the log says where a command ran.
 if [ "$(jq 'length' "$ENVIRONMENTS_JSON")" != 0 ]; then
   log "installing the development environment wrapper"
   docker exec -u root "$CONTAINER" bash -c "
@@ -105,8 +97,7 @@ WRAP
   "
 fi
 
-# Claude Code ships a native binary, so the sandbox needs no node runtime to
-# run it, and neither installer needs root.
+# Both ship native binaries, so neither needs root or a node runtime.
 log "installing term-llm and claude"
 as_agent "curl -fsSL https://raw.githubusercontent.com/samsaffron/term-llm/${TERM_LLM_VERSION}/install.sh | sh" &
 term_llm_pid=$!

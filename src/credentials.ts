@@ -1,9 +1,4 @@
-// The provider's credentials, on their way into the sandbox.
-//
-// They are passed to docker by name rather than by value, so they have to be
-// in the environment of whoever calls it. The shell that built the sandbox had
-// them and has since exited, which is a quiet way to send an agent to a model
-// it cannot log in to.
+// Read the provider's credentials into an environment docker can pass on.
 import { existsSync, readFileSync } from "node:fs";
 
 export function load(file: string | undefined, into: NodeJS.ProcessEnv): string[] {

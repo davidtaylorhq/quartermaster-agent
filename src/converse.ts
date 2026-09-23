@@ -1,10 +1,5 @@
 #!/usr/bin/env -S node --experimental-strip-types --no-warnings=ExperimentalWarning
-// Answer what is waiting, then keep the sandbox open in case more arrives.
-//
-// One turn is: build a prompt, run the agent on it, publish what it produced.
-// A run is as many turns as people keep asking for, which is worth doing
-// because the sandbox is already up and a fresh mention would pay for all of
-// it again.
+// Answer what is waiting, then hold the sandbox open for follow-ups.
 import { spawn, spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
@@ -21,12 +16,7 @@ const sandbox = JSON.parse(readFileSync(join(temp, "sandbox.json"), "utf8")) as 
   credentials: string[];
 };
 
-// Their stdout is what they produce; their stderr is for whoever reads the
-// log, so it goes straight there rather than being collected and dropped.
-// The provider's credentials are named in the sandbox description and read
-// from the runner, so `docker exec -e NAME` can pass them by name. They have
-// to be in this process to be passed on: the shell that built the sandbox had
-// them and has since exited.
+// docker passes credentials by name, so they must be in this process too.
 load(process.env.PROVIDER_ENV_FILE, process.env);
 
 function script(name: string, args: string[] = [], env: NodeJS.ProcessEnv = {}) {
@@ -41,16 +31,15 @@ function progress(...args: string[]) {
   spawnSync(process.env.PROGRESS_SCRIPT!, args, { stdio: "inherit" });
 }
 
-// Whatever the development environment does happens behind the gate, so its
-// output goes to the sandbox and never here. Follow its log while the agent
-// runs, or the runner shows nothing at all for the minutes it takes.
+// The development environment runs behind the gate; this log is the only way
+// its output reaches the runner.
 writeFileSync(join(temp, "dev-up.log"), "");
 const devLog = spawn("tail", ["-n", "+1", "-F", join(temp, "dev-up.log")], {
   stdio: ["ignore", "inherit", "ignore"],
 });
 
 function ask(prompt: string, resume: boolean): number {
-  // The reply and any line comments belong to this turn alone.
+  // Last turn's output must not be mistaken for this one's.
   for (const leftover of ["finish.json", "findings.jsonl"]) {
     spawnSync("docker", ["exec", "-u", "agent", sandbox.container, "rm", "-f", `${sandbox.home}/${leftover}`]);
     rmSync(join(temp, leftover), { force: true });
@@ -93,8 +82,7 @@ async function turn(prompt: string, resume: boolean) {
   const status = ask(prompt, resume);
   progress("next");
 
-  // An agent that failed usually left nothing to publish, and saying so
-  // instead of what went wrong hides the only useful part of the log.
+  // A failed agent leaves nothing to publish; report the failure, not that.
   try {
     await publish();
   } catch (error) {
@@ -118,8 +106,6 @@ try {
   const history = script("thread.ts", [], { SKIP_COMMENT_IDS: skip }).stdout;
   await turn(first(where, history, script("mentions.ts").stdout), false);
 
-  // The sandbox is still up. Answering here costs the model's time and nothing
-  // else, where a fresh mention costs a minute of setup first.
   while (script("next-mention.ts", ["--wait"]).status === 0) {
     progress("next", "Working", "Replying", `Waiting ${process.env.FOLLOWUP_WINDOW}s for further instructions`);
     await turn(again(script("mentions.ts").stdout), true);

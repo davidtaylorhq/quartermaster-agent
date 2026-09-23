@@ -1,15 +1,11 @@
 // Publish everything a turn produced, as one review, once.
 //
-// The sandbox cannot reach GitHub. It leaves line comments in findings.jsonl
-// and its reply in finish.json, and this is the only thing that publishes
-// either.
+// The sandbox cannot reach GitHub; it leaves its reply and line comments here.
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { request } from "./github.ts";
 
-// Every reply says where it came from and offers a way to say whether it
-// helped. Line comments do not carry it: once per review is a footer, on each
-// one it is noise.
+// On the reply only: on every line comment it would be noise.
 const FOOTER =
   '<div align="right"><sub>:robot: AI generated response - ' +
   "help improve with \u{1F44D} or \u{1F44E}</sub></div>";
@@ -63,8 +59,7 @@ if (comments.length === 0) {
   }
   await request("POST", `/repos/${repo}/issues/${issue}/comments`, { body: sign(reply) });
 } else {
-  // A review carries the line comments and the reply together, so the author
-  // gets one notification rather than one per point.
+  // One review, so the author gets one notification rather than one per point.
   console.error(`posting ${comments.length} line comment(s)`);
   await request("POST", `/repos/${repo}/pulls/${issue}/reviews`, {
     commit_id: readFileSync(join(temp, "relay.pushed"), "utf8").trim(),

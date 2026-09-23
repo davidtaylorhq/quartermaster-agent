@@ -1,8 +1,6 @@
-// What the agent is told, in one place.
+// What the agent is told.
 //
-// It was written twice, once for the first mention of a run and once for a
-// follow-up, and the two had already drifted apart. A follow-up says less
-// because the rest is still in the session it is resuming.
+// A follow-up says less because the rest is still in the session it resumes.
 export type Situation = {
   repo: string;
   issue: string;

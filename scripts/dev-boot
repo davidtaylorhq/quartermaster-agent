@@ -1,9 +1,7 @@
 #!/bin/bash
 # Start one of the project's development environments, once.
 #
-# Called by the gate with the environment's name. Everything the project said
-# about it is in the environments file; everything about how a container is
-# run is here, so no project can choose the flags that hold the sandbox shut.
+# The project describes it; the flags that hold the sandbox shut stay here.
 set -euo pipefail
 
 . "$HOME/.quartermaster/env"
@@ -12,14 +10,10 @@ NAME="$1"
 LOG="${RUNNER_TEMP:-/tmp}/dev-up.log"
 CONTAINER="quartermaster_dev_$NAME"
 
-# Everything here runs behind the gate, so anything written to the agent's
-# connection lands in the middle of whatever it asked for: the first command
-# after a boot came back with pages of install output wrapped around its own,
-# and the agent ran it again to see it cleanly. All of it goes to the log the
-# runner follows instead.
+# This runs behind the gate, so anything written here lands in the middle of
+# whatever the agent asked for. It goes to the runner's log instead.
 note() { echo "[$NAME] $*" >> "$LOG"; }
-# What goes wrong has to reach the agent. Everything else stays in the log:
-# the agent asked for one command, and should not be read pages of another.
+# Failures are the exception: the agent has to be told why.
 fatal() { note "$*"; echo "$BOT_NAME: $NAME: $*" >&2; exit 1; }
 progress() {
   if ! "$PROGRESS" "$@" >>"$LOG" 2>&1; then
@@ -32,12 +26,10 @@ field() { jq -r --arg n "$NAME" --arg f "$1" '.[$n][$f] // ""' "$ENVIRONMENTS"; 
 exec 9>"${RUNNER_TEMP:-/tmp}/dev-$NAME.lock"
 flock 9
 
-# A container is made once and set up once. One that has gone away stays gone:
-# starting a second over volumes the first already wrote to would run setup
-# against a state it was promised it would never see.
-# Only a successful inspect says anything about the container. Reading the
-# failure's output instead trusts docker to print nothing when it cannot find
-# one, and it does not.
+# Made once and set up once. A second container over the first one's volumes
+# would run setup against a state it was promised it would not see.
+#
+# Only a successful inspect says anything: docker prints on failure too.
 status=none
 if found=$(docker inspect -f '{{.State.Status}}' "$CONTAINER" 2>/dev/null); then
   status=$(printf '%s' "$found" | tr -d '[:space:]')
@@ -50,8 +42,6 @@ case "$status" in
   *)       fatal "the environment $status and will not be started again" ;;
 esac
 
-# The agent got as far as needing this, so that stretch of work is finished.
-# What follows is the wait, and then the rest of the work under its own name.
 progress next "Preparing $NAME" "Working in $NAME"
 
 IMAGE=$(field image)
@@ -70,8 +60,7 @@ if ! docker "${args[@]}" >>"$LOG" 2>&1; then
   fatal "the container would not start"
 fi
 
-# The sandbox writes the work tree as uid 1000, so whoever runs commands here
-# has to be uid 1000 too, or neither side can read what the other wrote.
+# The sandbox writes the work tree as uid 1000; this side must match.
 if [ -n "$USER_NAME" ]; then
   docker exec -u root "$CONTAINER" sh -c '
     set -e

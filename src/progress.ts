@@ -1,17 +1,9 @@
 #!/usr/bin/env -S node --experimental-strip-types --no-warnings=ExperimentalWarning
 // Keep the run's opening comment up to date as a checklist.
 //
-// The list is a sequence with one step in progress at a time, so the position
-// is a number and everything before it is finished. Steps have no names and
-// nothing addresses them: a caller says to move on, and may hand over steps to
-// do first.
-//
 //     progress start LABEL...     the list, with the first step under way
 //     progress next [LABEL...]    finish this step, do these next, start the next
 //     progress done               finish this step; nothing follows
-//
-// Moving on is one call and one edit, so the comment never shows a moment with
-// nothing happening.
 import { readFileSync, writeFileSync } from "node:fs";
 
 const OPENING = "On it!";

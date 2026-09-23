@@ -1,8 +1,4 @@
 // Everything this says to GitHub.
-//
-// One place that knows the token, the headers and what a page is, so the
-// scripts that use it read as what they are rather than as shell wrapped in a
-// subprocess.
 const API = "https://api.github.com";
 
 export type Comment = {
@@ -42,8 +38,7 @@ export async function request(
   return response;
 }
 
-// GitHub says where the next page is rather than how many there are, so this
-// follows what it says instead of counting.
+// GitHub gives the next page's URL rather than a count.
 export async function paginate<T>(path: string): Promise<T[]> {
   const out: T[] = [];
   let url: string | undefined = `${API}${path}${path.includes("?") ? "&" : "?"}per_page=100`;

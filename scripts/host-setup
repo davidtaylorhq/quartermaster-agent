@@ -18,10 +18,7 @@ WORKTREE_VOLUME=quartermaster-worktree
 step "preparing $STATE"
 docker volume create "$WORKTREE_VOLUME" >/dev/null
 
-# The gate starts this image the first time the agent reads anything from
-# GitHub, and waited on the pull when it did. Fetch it now instead, while the
-# sandbox is being built. A second pull of an image already arriving waits on
-# the first rather than repeating it.
+# Fetch it now, while the sandbox is being built, rather than on first use.
 nohup docker pull -q "$MCP_IMAGE" > "$RUNNER_TEMP/mcp-pull.log" 2>&1 &
 mkdir -p "$STATE"
 chmod 700 "$STATE"
@@ -34,15 +31,12 @@ step "building the relay on $bridge"
 # ---------------------------------------------------------------- git relay
 git --git-dir="$RELAY" config core.bare true
 git --git-dir="$RELAY" symbolic-ref HEAD "refs/heads/$HEAD_REF"
-# What GitHub is holding, as far as this run knows, and so what the push at
-# the end leases against. It has to be the commit that was actually fetched:
-# any other reading of the same branch can have moved on since, and a lease
-# taken against a commit nobody fetched is a lease against nothing.
+# What the push at the end leases against. It must be the commit that was
+# fetched: any other reading of the branch can have moved on since.
 git --git-dir="$RELAY" rev-parse "refs/heads/$HEAD_REF" > "$PUSHED"
 
-# A branch name may hold a backtick, a dollar or a quote, and everything here
-# is read by a shell on the runner. The shell does the quoting; nothing is
-# pasted into a script, and the hooks read the name rather than carrying it.
+# A branch name may hold a backtick, a dollar or a quote, and a shell on the
+# runner reads all of this. Nothing is pasted into a script.
 step "writing the gate environment"
 : > "$STATE/env"
 chmod 600 "$STATE/env"
@@ -78,8 +72,7 @@ if [ "$1" != "refs/heads/$HEAD_REF" ]; then
 fi
 HOOK
 
-# Git ignores what post-receive exits with, so a failed forward has to say so
-# itself or the agent is told its push succeeded when GitHub never saw it.
+# Git ignores what post-receive exits with, so a failed forward must say so.
 cat > "$RELAY/hooks/post-receive" <<'HOOK'
 #!/bin/bash
 . "$HOME/.quartermaster/env"
@@ -116,9 +109,8 @@ install -m 0644 "$ENVIRONMENTS_JSON" "$STATE/environments.json"
 step "generating keys"
 ssh-keygen -q -t ed25519 -N '' -f "$STATE/hostkey"
 ssh-keygen -q -t ed25519 -N '' -f "$STATE/clientkey" -C "$BOT_NAME"
-# The default location, with the permissions sshd insists on. An
-# AuthorizedKeysFile elsewhere is silently ignored when anything in its path is
-# not to sshd's liking, which looks exactly like a wrong key.
+# The default location. sshd ignores an AuthorizedKeysFile elsewhere without
+# saying so, which looks exactly like a wrong key.
 mkdir -p "$HOME/.ssh"
 chmod 700 "$HOME/.ssh"
 printf 'restrict,command="%s/gate" %s\n' "$STATE" "$(cat "$STATE/clientkey.pub")" \
@@ -134,14 +126,13 @@ PermitRootLogin no
 PasswordAuthentication no
 KbdInteractiveAuthentication no
 PubkeyAuthentication yes
-# The runner account has no password set. Without PAM, sshd's own account check
-# treats that as a locked account and refuses the key without logging why.
+# The runner account has no password. Without PAM, sshd reads that as locked
+# and refuses the key without logging why.
 UsePAM yes
 PrintMotd no
 LogLevel VERBOSE
-# The runner's home is group-writable, which sshd treats as reason enough to
-# ignore an authorized_keys file without saying so. This box is ephemeral and
-# the key is the only way in, so the check buys nothing here.
+# The runner's home is group-writable, which sshd silently treats as reason to
+# ignore authorized_keys.
 StrictModes no
 X11Forwarding no
 AllowTcpForwarding no

@@ -1,8 +1,5 @@
 #!/usr/bin/env -S node --experimental-strip-types --no-warnings=ExperimentalWarning
-// Publish whatever a run left behind.
-//
-// The conversation posts its own turns. This is what runs when it could not:
-// a crash leaves a reply on disk that somebody should still be told about.
+// Publishes what a crashed run left on disk. A run that lives posts its own.
 import { publish } from "./post.ts";
 
 try {

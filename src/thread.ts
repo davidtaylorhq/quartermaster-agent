@@ -1,26 +1,21 @@
 #!/usr/bin/env -S node --experimental-strip-types --no-warnings=ExperimentalWarning
 // Print what has already been said on this issue.
 //
-// The agent has no memory between mentions and the thread is where the
-// conversation actually lives, so it goes in the prompt rather than depending
-// on the agent choosing to look it up.
+// The agent has no memory between mentions, so the thread goes in the prompt.
 import { listComments, type Comment } from "./github.ts";
 
 const KEEP = 20;
 const WIDTH = 800;
 
-// Anyone else can comment on a pull request. Their words belong in the record,
-// but the agent should know whose words carry weight.
+// Anyone can comment; the agent needs to know whose words carry weight.
 const TRUSTED = new Set(
   (process.env.TRUSTED_ASSOCIATIONS ?? "OWNER,MEMBER,COLLABORATOR").split(","),
 );
 
-// The bot's own bookkeeping is not conversation. The checklist is recognised
-// by how it opens, which is also what it is: a sentence saying work has started.
+// Our own bookkeeping is not conversation.
 const NOISE = ["Superseded by a newer mention.", "The run failed.", "Starting…", "On it!"];
-// Both spellings of our signature: comments posted before it gained its
-// wrapper are still in the thread, and trimming at the inner one would leave
-// the outer tag behind.
+// Both spellings appear in a thread; trimming at the inner one strands the
+// outer tag.
 const FOOTERS = ['<div align="right"><sub>:robot:', "<sub>:robot:"];
 
 function withoutFooter(body: string): string {
@@ -49,7 +44,6 @@ if (kept.length > 0) {
   }
 
   for (const c of kept) {
-    // The signature is ours, not something anyone said.
     let body = withoutFooter(c.body.trim());
     if (body.length > WIDTH) body = body.slice(0, WIDTH) + " […]";
 

@@ -1,9 +1,7 @@
 #!/usr/bin/env -S node --experimental-strip-types --no-warnings=ExperimentalWarning
 // Take the mentions nobody has answered yet, and say so by reacting.
 //
-// A run may find several waiting, and the reaction is what stops two runs
-// answering the same one. Claiming is a single reaction rather than a read
-// and a write, so there is no window between deciding and saying so.
+// The reaction is what stops two runs answering the same comment.
 import { writeFileSync } from "node:fs";
 import { listComments, request, paginate, type Comment } from "./github.ts";
 
@@ -12,8 +10,8 @@ const ALLOWED = new Set(
   (process.env.TRUSTED_ASSOCIATIONS ?? "OWNER,MEMBER,COLLABORATOR").split(","),
 );
 const MACRO = process.env.MENTION!;
-// Old enough that nobody is still waiting for an answer. Anything further back
-// is a backlog, and answering a backlog at once is worse than leaving it.
+// Older than this is a backlog, and answering a backlog at once is worse
+// than leaving it.
 const MAX_AGE_HOURS = Number(process.env.MAX_COMMENT_AGE_HOURS ?? "1");
 const WINDOW = Number(process.env.FOLLOWUP_WINDOW ?? "60");
 
@@ -23,8 +21,7 @@ const out = process.env.MENTION_FILE!;
 const wait = process.argv.includes("--wait");
 
 async function claimed(comment: Comment): Promise<boolean> {
-  // The count comes with the comment. Nought means nobody has reacted at all,
-  // which settles it without asking; anything else needs to know who.
+  // The count arrives with the comment; only a non-zero one needs a lookup.
   if (!comment.reactions?.eyes) return false;
   const reactions = await paginate<{ content: string; user: { login: string } }>(
     `/repos/${repo}/issues/comments/${comment.id}/reactions`,
