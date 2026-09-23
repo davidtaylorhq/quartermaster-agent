@@ -2,7 +2,7 @@
 import { readFileSync } from "node:fs";
 import { scratch } from "./scratch.ts";
 
-export type Mention = { id: number; author: string; body: string };
+export type Mention = { id: number; author: string; body: string; created_at: string };
 
 export function waiting(): Mention[] {
   return JSON.parse(readFileSync(scratch("mention.json"), "utf8")) as Mention[];

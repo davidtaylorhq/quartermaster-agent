@@ -11,6 +11,7 @@ import { claim } from "./next-mention.ts";
 import { publish } from "./post.ts";
 import { again, first, type Situation } from "./prompt.ts";
 import { thread } from "./thread.ts";
+import { began } from "./timing.ts";
 
 const temp = process.env.RUNNER_TEMP!;
 const sandbox = JSON.parse(readFileSync(join(temp, "sandbox.json"), "utf8")) as {
@@ -74,7 +75,8 @@ function ask(prompt: string, resume: boolean): number {
   return run.status ?? 1;
 }
 
-async function turn(prompt: string, resume: boolean) {
+async function turn(prompt: string, resume: boolean, asked: string) {
+  began(asked, !resume);
   const status = ask(prompt, resume);
   progress("next");
 
@@ -103,11 +105,12 @@ try {
     progress("next");
     const asked = waiting();
     const history = await thread(new Set(asked.map((m) => String(m.id))));
-    await turn(first(where, history, render(asked)), false);
+    await turn(first(where, history, render(asked)), false, asked[0]!.created_at);
   } else {
     while (await claim(true)) {
       progress("next", "Working", "Replying", `Waiting ${process.env.FOLLOWUP_WINDOW}s for further instructions`);
-      await turn(again(render(waiting())), true);
+      const next = waiting();
+      await turn(again(render(next)), true, next[0]!.created_at);
     }
     progress("done");
   }

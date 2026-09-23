@@ -132,6 +132,9 @@ jobs:
             -d '{"content":"eyes"}' \
             "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/issues/comments/$COMMENT/reactions")
 
+          # Everything before this was queueing and provisioning, which is
+          # what the reply's footer calls waiting.
+          echo "RUN_STARTED=$(date +%s%3N)" >> "$GITHUB_ENV"
           case "$status" in
             201) echo "ours=true" >> "$GITHUB_OUTPUT" ;;
             200) echo "another run has this one" ;;
