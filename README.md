@@ -167,7 +167,7 @@ With no such file the agent reads, writes and answers, and the gate refuses to r
 
 ## How it works
 
-The agent runs in a container holding no GitHub credential. What it needs is a service on the runner: an SSH gate that accepts three verbs and nothing else, and a forwarder that serves reads of this repository. The model credential is the exception, and is in the container.
+The agent runs in a container holding no GitHub credential. Everything it can ask the runner for goes through an SSH gate that accepts four verbs and nothing else: run something in a development environment, reach the GitHub MCP server, bring a branch or commit from GitHub, and push. The model credential is the exception, and is in the container.
 
 - **Pushing.** The container's `origin` is a bare repository on the runner. A hook there refuses every ref but the pull request's own branch, and a second hook forwards what it accepts to GitHub using a token the container never sees. `GITHUB_TOKEN` permissions cannot be scoped to a ref, so this is the only way to say "this branch and no other".
 - **Reading GitHub.** A read-only GitHub MCP server, started on the runner, reached through the gate.
