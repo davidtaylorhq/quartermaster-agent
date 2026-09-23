@@ -15,11 +15,7 @@ jobs:
         background: true
         run: sleep 5
 
-      - name: Wait with a guard
-        if: steps.seen.outputs.ours == 'true'
-        wait: [skipped]
-
-      - name: Wait without a guard
+      - name: Wait for it anyway
         wait: [skipped]
 
       - name: Reached the end
