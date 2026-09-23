@@ -1,0 +1,91 @@
+#!/usr/bin/env python3
+"""Keep the run's opening comment up to date as a checklist.
+
+The list is a sequence with one step in progress at a time, so the position is
+a number and everything before it is finished. Steps have no names and nothing
+addresses them: a caller says to move on, and may hand over steps to do first.
+
+    progress start LABEL...     the list, with the first step under way
+    progress next [LABEL...]    finish this step, do these next, start the next
+    progress done               finish this step; nothing follows
+
+Moving on is one call and one edit, so the comment never shows a moment with
+nothing happening.
+"""
+import json
+import os
+import pathlib
+import subprocess
+import sys
+
+OPENING = "On it!"
+FOLLOW = "Follow along with [the logs]({run})."
+ASSETS = "https://raw.githubusercontent.com/{repo}/{ref}/assets"
+MARK = {"done": ("mark-done.svg", "done"),
+        "active": ("mark-active.svg", "in progress"),
+        "pending": ("mark-pending.svg", "not started")}
+
+STATE = pathlib.Path(os.environ.get("PROGRESS_FILE", "/tmp/progress.json"))
+
+
+def render(labels, at):
+    assets = ASSETS.format(repo=os.environ["ASSET_REPO"],
+                           ref=os.environ["ASSET_REF"])
+    lines = []
+    for i, label in enumerate(labels):
+        state = "done" if i < at else "active" if i == at else "pending"
+        name, alt = MARK[state]
+        # An image sits its bottom on the baseline by default, which leaves a
+        # round mark floating above the capitals.
+        lines.append(
+            f'<img src="{assets}/{name}" width="15" height="15" alt="{alt}"'
+            ' style="vertical-align: middle; margin-right: 2px">'
+            f" {label}")
+
+    run = os.environ.get("RUN_URL", "")
+    opening = f"{OPENING} {FOLLOW.format(run=run)}" if run else OPENING
+    return f"{opening}\n\n" + "\n".join(lines)
+
+
+def publish(labels, at):
+    STATE.write_text(json.dumps({"labels": labels, "at": at}))
+    comment = os.environ.get("COMMENT_ID")
+    repo = os.environ.get("GITHUB_REPOSITORY")
+    if not comment or not repo:
+        return
+    p = subprocess.run(
+        ["gh", "api", "--method", "PATCH", f"/repos/{repo}/issues/comments/{comment}",
+         "-f", f"body={render(labels, at)}"],
+        input="", capture_output=True, text=True)
+    if p.returncode != 0:
+        print(p.stderr.strip(), file=sys.stderr)
+
+
+def main(argv):
+    if not argv:
+        print(__doc__.strip().splitlines()[-4], file=sys.stderr)
+        return 64
+    cmd, *labels = argv
+
+    if cmd == "start":
+        publish(labels, 0)
+        return 0
+
+    saved = json.loads(STATE.read_text())
+    existing, at = saved["labels"], saved["at"]
+
+    if cmd == "next":
+        existing[at + 1:at + 1] = labels
+        publish(existing, min(at + 1, len(existing)))
+        return 0
+
+    if cmd == "done":
+        publish(existing, len(existing))
+        return 0
+
+    print(f"unknown command {cmd}", file=sys.stderr)
+    return 64
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

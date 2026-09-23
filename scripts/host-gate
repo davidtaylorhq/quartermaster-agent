@@ -1,0 +1,35 @@
+#!/bin/sh
+# The only thing the sandbox can ask the runner to do.
+#
+# Installed as a forced command in authorized_keys, so this runs whatever the
+# client asked for. It matches on the verb and supplies its own arguments: the
+# client's are discarded, which is what keeps this from being a parsing problem.
+. "$HOME/.quartermaster/env"
+
+case "$SSH_ORIGINAL_COMMAND" in
+  mcp)
+    exec docker run -i --rm \
+      -e GITHUB_PERSONAL_ACCESS_TOKEN \
+      -e GITHUB_TOOLSETS \
+      -e GITHUB_READ_ONLY \
+      "$MCP_IMAGE"
+    ;;
+  dev)
+    # Bring the development environment up if it is not already, then hand the
+    # command on stdin to a shell inside it. Nothing is parsed here either.
+    # Keep it off this connection's stdin: that is the command the agent sent,
+    # and the container it starts things in would read it as input.
+    "$HOME/.quartermaster/dev-up" </dev/null || exit 1
+    exec docker exec -i -u discourse -w /src -e CI=1 discourse_dev bash -l
+    ;;
+  git-upload-pack*)
+    exec git-upload-pack "$RELAY"
+    ;;
+  git-receive-pack*)
+    exec git-receive-pack "$RELAY"
+    ;;
+  *)
+    echo "$BOT_NAME: not permitted" >&2
+    exit 1
+    ;;
+esac

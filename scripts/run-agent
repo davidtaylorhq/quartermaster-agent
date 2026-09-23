@@ -1,0 +1,145 @@
+#!/bin/bash
+# Boot the sandbox and run the agent in it.
+#
+# The sandbox is deliberately small: git, ssh and term-llm. It holds no
+# credentials and mounts nothing from the runner. The work tree is a docker
+# volume, which the development environment mounts too if the agent ever needs
+# one, so a run that only answers a question never waits for Ruby.
+set -Eeuo pipefail
+
+: "${RUNNER_TEMP:?}" "${BRIDGE_IP:?}" "${SSH_PORT:?}"
+: "${CLIENT_KEY:?}" "${HEAD_REF:?}" "${AGENT_DIR:?}"
+: "${CLAUDE_CODE_OAUTH_TOKEN:?}"
+: "${GATE_USER:?}" "${SKILLS_DIR:?}" "${TERM_LLM_VERSION:?}" "${WORKTREE_VOLUME:?}"
+: "${MCP_TEMPLATE:?}"
+
+CONTAINER=quartermaster_sandbox
+IMAGE=debian:stable-slim
+HOME_DIR=/home/agent
+SSH_OPTS="-i $HOME_DIR/.ssh/gate -p $SSH_PORT -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+
+log() { echo "[sandbox] $*" >&2; }
+
+dump_host_log() {
+  echo "[sandbox] --- sshd log ---" >&2
+  sudo cat "$RUNNER_TEMP/sshd.log" 2>/dev/null >&2 || true
+}
+trap dump_host_log ERR
+
+as_agent() {
+  docker exec -i -u agent -w /src \
+    -e HOME="$HOME_DIR" \
+    -e GIT_SSH_COMMAND="ssh $SSH_OPTS" \
+    -e HEAD_REF="$HEAD_REF" \
+    -e CLAUDE_CODE_OAUTH_TOKEN="$CLAUDE_CODE_OAUTH_TOKEN" \
+    "$CONTAINER" bash -lc 'export PATH="$HOME/.local/bin:$PATH"; '"$1"
+}
+
+log "booting $IMAGE"
+docker run -d \
+  --name "$CONTAINER" \
+  --add-host "host.docker.internal:$BRIDGE_IP" \
+  -v "$WORKTREE_VOLUME:/src" \
+  "$IMAGE" sleep infinity >/dev/null
+
+docker exec -u root "$CONTAINER" bash -c '
+  set -e
+  apt-get update -qq
+  apt-get install -y -qq --no-install-recommends \
+    git openssh-client ca-certificates curl jq >/dev/null
+  useradd -u 1000 -m -d /home/agent -s /bin/bash agent
+  install -d -o agent -g agent -m 0700 /home/agent/.ssh
+  chown agent:agent /src
+'
+
+docker cp "$CLIENT_KEY" "$CONTAINER:$HOME_DIR/.ssh/gate"
+docker exec -u root "$CONTAINER" chown agent:agent "$HOME_DIR/.ssh/gate"
+docker exec -u root "$CONTAINER" chmod 600 "$HOME_DIR/.ssh/gate"
+
+# Anything that needs Ruby, node or the database runs in the development
+# environment instead of failing here. The shebang on bin/rspec and friends is
+# `env ruby`, so shimming ruby catches those without the agent having to know.
+log "installing shims for the development environment"
+docker exec -u root "$CONTAINER" bash -c "
+  set -e
+  cat > /usr/local/bin/dev <<'WRAP'
+#!/bin/bash
+# Run a command in the Discourse development environment.
+set -euo pipefail
+printf 'cd %q\n' \"\$PWD\" > /tmp/dev.\$\$
+printf '%q ' \"\$@\" >> /tmp/dev.\$\$
+printf '\n' >> /tmp/dev.\$\$
+exec ssh $SSH_OPTS $GATE_USER@host.docker.internal dev < /tmp/dev.\$\$
+WRAP
+  chmod 0755 /usr/local/bin/dev
+  for c in ruby bundle bundler pnpm node npx psql rake rails; do
+    printf '#!/bin/sh\nexec /usr/local/bin/dev %s \"\$@\"\n' \"\$c\" > /usr/local/bin/\$c
+    chmod 0755 /usr/local/bin/\$c
+  done
+"
+
+# Claude Code ships a native binary, so the sandbox needs no node runtime to
+# run it, and neither installer needs root.
+log "installing term-llm and claude"
+as_agent "curl -fsSL https://raw.githubusercontent.com/samsaffron/term-llm/${TERM_LLM_VERSION}/install.sh | sh" &
+term_llm_pid=$!
+as_agent "curl -fsSL https://claude.ai/install.sh | bash" &
+claude_pid=$!
+wait $term_llm_pid
+wait $claude_pid
+
+log "cloning the branch"
+as_agent "
+  set -e
+  git clone -q --depth 1 --branch "\$HEAD_REF" ssh://$GATE_USER@host.docker.internal/relay.git /src
+  cd /src
+  git config user.name  "$BOT_NAME"
+  git config user.email "$BOT_NAME@users.noreply.github.com"
+"
+
+log "installing the agent"
+docker exec -u root "$CONTAINER" install -d -o agent -g agent \
+  "$HOME_DIR/.config/term-llm/agents" "$HOME_DIR/.config/term-llm/skills"
+docker cp "$AGENT_DIR/." "$CONTAINER:$HOME_DIR/.config/term-llm/agents/quartermaster"
+docker cp "$SKILLS_DIR/." "$CONTAINER:$HOME_DIR/.config/term-llm/skills"
+sed -e "s#__KEY__#$HOME_DIR/.ssh/gate#" \
+    -e "s#__SSH_PORT__#$SSH_PORT#" \
+    -e "s#__GATE_USER__#$GATE_USER#" \
+    "$MCP_TEMPLATE" > "$RUNNER_TEMP/mcp.json"
+docker cp "$RUNNER_TEMP/mcp.json" "$CONTAINER:$HOME_DIR/.config/term-llm/mcp.json"
+
+docker exec -u root "$CONTAINER" chown -R agent:agent "$HOME_DIR/.config"
+
+progress() { "$(dirname "$0")/progress" "$@" || true; }
+
+# Whatever the development environment does happens behind the gate, so its
+# output goes to the sandbox and never here. Follow its log while the agent
+# runs, or the runner shows nothing at all for the minutes it takes.
+: > "$RUNNER_TEMP/dev-up.log"
+tail -n +1 -F "$RUNNER_TEMP/dev-up.log" 2>/dev/null &
+tail_pid=$!
+trap 'kill "$tail_pid" 2>/dev/null || true' EXIT
+
+progress next
+log "running the agent"
+docker cp "$RUNNER_TEMP/prompt.txt" "$CONTAINER:$HOME_DIR/prompt.txt"
+set +e
+as_agent "
+  term-llm ask \
+    --agent quartermaster \
+    --provider claude-bin \
+    --session-db $HOME_DIR/session.db \
+    --yolo \
+    --text \
+    --stats \
+    --max-turns $MAX_TURNS \
+    --timeout $AGENT_TIMEOUT \
+    \"\$(cat $HOME_DIR/prompt.txt)\" 2>&1
+" | sed -u -e 's/.*\r//'
+status=${PIPESTATUS[0]}
+set -e
+
+docker cp "$CONTAINER:$HOME_DIR/finish.json"    "$RUNNER_TEMP/finish.json"      2>/dev/null || true
+docker cp "$CONTAINER:$HOME_DIR/findings.jsonl" "$RUNNER_TEMP/findings.jsonl"   2>/dev/null || true
+
+exit "$status"

@@ -1,0 +1,38 @@
+name: quartermaster
+description: "Answers GitHub comments, reviews code, and authors changes"
+time_grounding: true
+agents_md: "true"
+skills: "all"
+
+tools:
+  enabled: [read_file, glob, grep, write_file, edit_file, shell]
+
+mcp:
+  - name: github
+
+shell:
+  auto_run: true
+
+# The run ends when this is called, and only then. Nothing the agent does
+# reaches GitHub on its own: line comments are held, this is the single reply,
+# and the runner posts both together, once.
+output_tool:
+  name: finish
+  description: "Finish the run. Call once, when there is nothing left to do."
+  schema:
+    type: object
+    properties:
+      reply:
+        type: string
+        description: "Markdown posted as your reply. Always say something, even after leaving line comments."
+      changed_code:
+        type: boolean
+        description: "True if you committed and pushed a change."
+    required: [reply, changed_code]
+    additionalProperties: false
+
+on_complete: |
+  cat > "$HOME/finish.json"
+
+max_turns: 60
+handover_mode: "light"

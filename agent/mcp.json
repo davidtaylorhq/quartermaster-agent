@@ -1,0 +1,15 @@
+{
+  "servers": {
+    "github": {
+      "command": "ssh",
+      "args": [
+        "-i", "__KEY__",
+        "-p", "__SSH_PORT__",
+        "-o", "StrictHostKeyChecking=no",
+        "-o", "UserKnownHostsFile=/dev/null",
+        "__GATE_USER__@host.docker.internal",
+        "mcp"
+      ]
+    }
+  }
+}

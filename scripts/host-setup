@@ -1,0 +1,171 @@
+#!/bin/bash
+# Stand up everything the sandbox is allowed to reach: a git relay, an SSH gate
+# in front of it, and an inference endpoint. Every credential stays here.
+set -euo pipefail
+
+step() { echo "[host] $*" >&2; }
+
+: "${RUNNER_TEMP:?}" "${HEAD_REF:?}" "${HEAD_OID:?}" "${GITHUB_REPOSITORY:?}"
+: "${GH_TOKEN:?}"
+
+STATE="$HOME/.quartermaster"
+RELAY="$RUNNER_TEMP/relay.git"
+PUSHED="$RUNNER_TEMP/relay.pushed"
+SSH_PORT=2222
+MCP_IMAGE=ghcr.io/github/github-mcp-server:v1.12.2
+WORKTREE_VOLUME=quartermaster-worktree
+POSTGRES_VOLUME=quartermaster-postgres
+
+step "preparing $STATE"
+docker volume create "$WORKTREE_VOLUME" >/dev/null
+docker volume create "$POSTGRES_VOLUME" >/dev/null
+
+# The gate starts this image the first time the agent reads anything from
+# GitHub, and waited on the pull when it did. Fetch it now instead, while the
+# sandbox is being built. A second pull of an image already arriving waits on
+# the first rather than repeating it.
+nohup docker pull -q "$MCP_IMAGE" > "$RUNNER_TEMP/mcp-pull.log" 2>&1 &
+mkdir -p "$STATE"
+chmod 700 "$STATE"
+
+step "finding the docker bridge"
+bridge=$(ip -4 -o addr show docker0 2>/dev/null | awk '{print $4}' | cut -d/ -f1 | head -1)
+: "${bridge:=172.17.0.1}"
+
+step "building the relay on $bridge"
+# ---------------------------------------------------------------- git relay
+git --git-dir="$RELAY" config core.bare true
+git --git-dir="$RELAY" update-ref "refs/heads/$HEAD_REF" "$HEAD_OID"
+git --git-dir="$RELAY" symbolic-ref HEAD "refs/heads/$HEAD_REF"
+printf '%s' "$HEAD_OID" > "$PUSHED"
+
+# A branch name may hold a backtick, a dollar or a quote, and everything here
+# is read by a shell on the runner. The shell does the quoting; nothing is
+# pasted into a script, and the hooks read the name rather than carrying it.
+step "writing the gate environment"
+: > "$STATE/env"
+chmod 600 "$STATE/env"
+put() { printf 'export %s=%q\n' "$1" "$2" >> "$STATE/env"; }
+put RELAY "$RELAY"
+put PUSHED "$PUSHED"
+put BOT_NAME "$BOT_NAME"
+put HEAD_REF "$HEAD_REF"
+put MCP_IMAGE "$MCP_IMAGE"
+put GITHUB_PERSONAL_ACCESS_TOKEN "$GH_TOKEN"
+put GH_TOKEN "$GH_TOKEN"
+put GITHUB_TOOLSETS "${GITHUB_TOOLSETS:-pull_requests,issues}"
+put GITHUB_READ_ONLY 1
+put WORKTREE_VOLUME "$WORKTREE_VOLUME"
+put POSTGRES_VOLUME "$POSTGRES_VOLUME"
+put PROGRESS "$STATE/progress"
+put PROGRESS_FILE "$RUNNER_TEMP/progress.json"
+put COMMENT_ID "${COMMENT_ID:-}"
+put GITHUB_REPOSITORY "$GITHUB_REPOSITORY"
+put RUN_URL "${RUN_URL:-}"
+put RUNNER_TEMP "$RUNNER_TEMP"
+put CAN_PUSH "${CAN_PUSH:-false}"
+put PUSH_BLOCKED_BECAUSE "${PUSH_BLOCKED_BECAUSE:-}"
+
+cat > "$RELAY/hooks/update" <<'HOOK'
+#!/bin/bash
+. "$HOME/.quartermaster/env"
+if [ "$1" != "refs/heads/$HEAD_REF" ]; then
+  echo "${BOT_NAME}: only $HEAD_REF may be pushed from the sandbox" >&2
+  exit 1
+fi
+HOOK
+
+# Git ignores what post-receive exits with, so a failed forward has to say so
+# itself or the agent is told its push succeeded when GitHub never saw it.
+cat > "$RELAY/hooks/post-receive" <<'HOOK'
+#!/bin/bash
+. "$HOME/.quartermaster/env"
+while read -r _old new ref; do
+  [ "$ref" = "refs/heads/$HEAD_REF" ] || continue
+
+  if [ "${CAN_PUSH:-false}" != true ]; then
+    echo "${BOT_NAME}: kept in the sandbox, not sent to GitHub: ${PUSH_BLOCKED_BECAUSE:-pushing is unavailable}"
+    continue
+  fi
+
+  expected=$(cat "$PUSHED")
+  auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+  if git -c http.extraheader="AUTHORIZATION: basic $auth" \
+       push --force-with-lease="refs/heads/$HEAD_REF:$expected" \
+       "${RELAY_REMOTE:-https://github.com/$GITHUB_REPOSITORY.git}" \
+       "$new:refs/heads/$HEAD_REF" 2>&1
+  then
+    printf '%s' "$new" > "$PUSHED"
+    echo "${BOT_NAME}: pushed ${new:0:12} to $HEAD_REF on GitHub"
+  else
+    echo "${BOT_NAME}: GitHub refused the push; the commit exists only in the sandbox"
+    echo "${BOT_NAME}: the branch most likely moved since this run started"
+  fi
+done
+HOOK
+chmod +x "$RELAY/hooks/update" "$RELAY/hooks/post-receive"
+
+install -m 0755 "$(dirname "$0")/host-gate"  "$STATE/gate"
+install -m 0755 "$(dirname "$0")/dev-up"     "$STATE/dev-up"
+install -m 0755 "$(dirname "$0")/progress"   "$STATE/progress"
+
+# --------------------------------------------------------------- the ssh gate
+step "generating keys"
+ssh-keygen -q -t ed25519 -N '' -f "$STATE/hostkey"
+ssh-keygen -q -t ed25519 -N '' -f "$STATE/clientkey" -C "$BOT_NAME"
+# The default location, with the permissions sshd insists on. An
+# AuthorizedKeysFile elsewhere is silently ignored when anything in its path is
+# not to sshd's liking, which looks exactly like a wrong key.
+mkdir -p "$HOME/.ssh"
+chmod 700 "$HOME/.ssh"
+printf 'restrict,command="%s/gate" %s\n' "$STATE" "$(cat "$STATE/clientkey.pub")" \
+  >> "$HOME/.ssh/authorized_keys"
+chmod 600 "$HOME/.ssh/authorized_keys"
+
+cat > "$STATE/sshd_config" <<CONF
+Port $SSH_PORT
+ListenAddress $bridge
+HostKey $STATE/hostkey
+AllowUsers $(id -un)
+PermitRootLogin no
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PubkeyAuthentication yes
+# The runner account has no password set. Without PAM, sshd's own account check
+# treats that as a locked account and refuses the key without logging why.
+UsePAM yes
+PrintMotd no
+LogLevel VERBOSE
+# The runner's home is group-writable, which sshd treats as reason enough to
+# ignore an authorized_keys file without saying so. This box is ephemeral and
+# the key is the only way in, so the check buys nothing here.
+StrictModes no
+X11Forwarding no
+AllowTcpForwarding no
+AllowAgentForwarding no
+Subsystem sftp /bin/false
+CONF
+
+step "starting sshd"
+sudo mkdir -p /run/sshd
+sudo touch "$RUNNER_TEMP/sshd.log"
+sudo chmod 666 "$RUNNER_TEMP/sshd.log"
+if ! sudo /usr/sbin/sshd -f "$STATE/sshd_config" -E "$RUNNER_TEMP/sshd.log"; then
+  echo "[host] sshd refused to start:" >&2
+  sudo cat "$RUNNER_TEMP/sshd.log" >&2 || true
+  sudo /usr/sbin/sshd -T -f "$STATE/sshd_config" >&2 || true
+  exit 1
+fi
+
+step "gate is listening on:"
+ss -tln | grep ":$SSH_PORT" >&2 || echo "[host] nothing on $SSH_PORT" >&2
+
+{
+  echo "BRIDGE_IP=$bridge"
+  echo "SSH_PORT=$SSH_PORT"
+  echo "CLIENT_KEY=$STATE/clientkey"
+  echo "GATE_USER=$(id -un)"
+  echo "WORKTREE_VOLUME=$WORKTREE_VOLUME"
+} >> "$GITHUB_ENV"
+
+echo "gate on $bridge:$SSH_PORT"

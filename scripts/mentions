@@ -1,0 +1,28 @@
+#!/usr/bin/env python3
+"""Render the comments this turn is answering.
+
+Several may be waiting at once, and someone correcting themselves a few
+seconds later means the last word is the one that counts.
+"""
+import json
+import os
+import pathlib
+import sys
+
+
+def main():
+    mentions = json.loads(pathlib.Path(os.environ["MENTION_FILE"]).read_text())
+    if os.environ.get("IDS_ONLY"):
+        print(" ".join(str(m["id"]) for m in mentions))
+        return 0
+    if len(mentions) > 1:
+        print(f"{len(mentions)} comments are waiting. Where they disagree, the last one wins.\n")
+    for m in mentions:
+        print(f"@{m['author']}:")
+        print(m["body"].strip())
+        print()
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

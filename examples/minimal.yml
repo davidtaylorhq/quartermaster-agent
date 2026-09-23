@@ -1,0 +1,20 @@
+# The smallest caller that works.
+name: Acmebot
+
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  respond:
+    # Keep this condition. Without it every comment starts a runner.
+    if: contains(github.event.comment.body, '@acmebot')
+    uses: davidtaylorhq/quartermaster-agent/.github/workflows/quartermaster.yml@main
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    with:
+      mention: '@acmebot'
+    secrets:
+      anthropic-oauth-token: ${{ secrets.ANTHROPIC_OAUTH_TOKEN }}

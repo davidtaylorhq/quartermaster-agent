@@ -1,0 +1,78 @@
+#!/bin/bash
+# Bring up the Discourse development environment, once, on demand.
+#
+# It shares the work tree volume with the sandbox, so the agent's edits are
+# already there. Most runs never call this and never wait for it.
+set -euo pipefail
+
+. "$HOME/.quartermaster/env"
+
+CONTAINER=discourse_dev
+IMAGE=discourse/discourse_dev:release
+LOG="${RUNNER_TEMP:-/tmp}/dev-up.log"
+
+# Everything here runs behind the gate, so anything written to the agent's
+# connection lands in the middle of whatever it asked for: the first command
+# after a boot came back with pages of `bundle install` wrapped around its own
+# output, and the agent ran it again to see it cleanly. All of it goes to the
+# log the runner follows instead.
+note() { echo "[dev] $*" >> "$LOG"; }
+progress() {
+  if ! "$PROGRESS" "$@" >>"$LOG" 2>&1; then
+    echo "[dev] progress $* failed" >> "$LOG"
+  fi
+}
+
+running() {
+  [ "$(docker inspect -f '{{.State.Running}}' "$CONTAINER" 2>/dev/null || echo false)" = true ]
+}
+
+exec 9>"${RUNNER_TEMP:-/tmp}/dev-up.lock"
+flock 9
+running && exit 0
+
+# The agent got as far as needing this, so that stretch of work is finished.
+# What follows is the wait, and then the rest of the work under its own name.
+progress next \
+  "Preparing development environment" \
+  "Working in development environment"
+
+note "starting $IMAGE"
+docker run -d \
+  --name "$CONTAINER" \
+  --hostname discourse \
+  -v "$WORKTREE_VOLUME:/src" \
+  -v "$POSTGRES_VOLUME:/shared/postgres_data" \
+  "$IMAGE" /sbin/boot >/dev/null
+
+# The sandbox writes the work tree as uid 1000; whatever this image calls that
+# user has to agree, or neither side can read what the other wrote.
+docker exec -u root "$CONTAINER" bash -c '
+  set -e
+  [ "$(id -u discourse)" = 1000 ] || {
+    usermod -u 1000 discourse
+    groupmod -g 1000 discourse
+    chown -R 1000:1000 /home/discourse
+  }
+'
+
+in_dev() {
+  docker exec -i -u discourse -w /src -e CI=1 "$CONTAINER" bash -lc "$1"
+}
+
+note "waiting for postgres"
+for _ in $(seq 1 60); do
+  docker exec -u root "$CONTAINER" pg_isready -q 2>/dev/null && break
+  sleep 2
+done
+
+note "installing gems"
+in_dev "bundle install --jobs $(nproc) --retry 3" >> "$LOG" 2>&1
+note "installing node modules"
+in_dev "pnpm install --frozen-lockfile" >> "$LOG" 2>&1
+note "migrating"
+in_dev "bin/rake db:create db:migrate" >> "$LOG" 2>&1
+in_dev "RAILS_ENV=test bin/rake db:create db:migrate" >> "$LOG" 2>&1
+
+progress next
+note "ready"
