@@ -313,15 +313,8 @@ jobs:
       - name: Answer anything that follows
         if: steps.seen.outputs.ours == 'true'
         run: quartermaster/src/converse.ts followups
-      - name: Note that a newer mention took over
-        if: cancelled() && steps.seen.outputs.ours == 'true'
+      - name: Say the run ended early
+        if: (failure() || cancelled()) && steps.seen.outputs.ours == 'true'
         run: |
-          gh api --method PATCH \
-            "/repos/$GITHUB_REPOSITORY/issues/comments/$COMMENT_ID" \
-            -f body="The run stopped before it could answer. [View the log]($RUN_URL)." >/dev/null
-      - name: Report failure
-        if: failure() && steps.seen.outputs.ours == 'true'
-        run: |
-          gh api --method PATCH \
-            "/repos/$GITHUB_REPOSITORY/issues/comments/$COMMENT_ID" \
-            -f body="The run failed. [View the log]($RUN_URL)." >/dev/null
+          quartermaster/src/progress.ts stopped \
+            "${{ failure() && 'The run failed.' || 'The run stopped before it could answer.' }} [View the log]($RUN_URL)."

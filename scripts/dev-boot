@@ -38,7 +38,7 @@ case "$status" in
   *)       fatal "the environment $status and will not be started again" ;;
 esac
 
-progress next "Preparing $NAME" "Working in $NAME"
+progress begin "dev-$NAME" "Preparing $NAME"
 
 IMAGE=$(field image)
 MOUNT=$(field mount)
@@ -76,5 +76,5 @@ if [ -n "$SETUP" ]; then
   fi
 fi
 
-progress next
+progress end "dev-$NAME"
 note "ready"
