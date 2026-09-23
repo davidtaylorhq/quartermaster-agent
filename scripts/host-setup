@@ -31,8 +31,9 @@ step "building the relay on $bridge"
 # ---------------------------------------------------------------- git relay
 git --git-dir="$RELAY" config core.bare true
 git --git-dir="$RELAY" symbolic-ref HEAD "refs/heads/$HEAD_REF"
-# What the push at the end leases against. It must be the commit that was
-# fetched: any other reading of the branch can have moved on since.
+# What the push at the end leases against. The relay was copied from the work
+# tree, so this is the commit the agent started from rather than a second
+# reading of the branch, which could have moved.
 git --git-dir="$RELAY" rev-parse "refs/heads/$HEAD_REF" > "$PUSHED"
 
 # A branch name may hold a backtick, a dollar or a quote, and a shell on the

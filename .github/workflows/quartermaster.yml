@@ -203,24 +203,6 @@ jobs:
             env:
               DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
             run: quartermaster/src/resolve.ts
-      - name: Fetch the branch
-        if: steps.seen.outputs.ours == 'true'
-        id: fetch
-        background: true
-        env:
-          HEAD_REF: ${{ steps.pr.outputs.head_ref }}
-        run: |
-          # The relay exists to police the push, not to serve the files: the
-          # sandbox clones from GitHub itself. It still takes whole objects.
-          # A partial clone here has to reach its promisor to forward a push,
-          # and a hook may not, so the push fails inside the quarantine that
-          # receive-pack runs it in.
-          auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
-          git init -q --bare "$RUNNER_TEMP/relay.git"
-          git --git-dir="$RUNNER_TEMP/relay.git" \
-            -c http.extraheader="AUTHORIZATION: basic $auth" \
-            fetch -q --depth 1 "${{ github.server_url }}/${{ github.repository }}.git" \
-            "+${{ steps.pr.outputs.ref }}:refs/heads/$HEAD_REF"
       - name: Clone the work tree
         if: steps.seen.outputs.ours == 'true'
         id: worktree
@@ -237,6 +219,12 @@ jobs:
               -c checkout.workers=0 \
             clone -q --depth 1 --branch "$HEAD_REF" \
             "${{ github.server_url }}/${{ github.repository }}.git" "$RUNNER_TEMP/worktree"
+
+          # The relay polices the push, and leases against the commit the agent
+          # started from. Copying the work tree's objects is what makes those
+          # the same commit rather than two fetches that may disagree.
+          cp -a "$RUNNER_TEMP/worktree/.git" "$RUNNER_TEMP/relay.git"
+
           # The sandbox runs as uid 1000; the runner is somebody else.
           sudo chown -R 1000:1000 "$RUNNER_TEMP/worktree"
 
@@ -293,8 +281,8 @@ jobs:
           quartermaster/src/environments.ts \
             "project/$ENVIRONMENTS" "$RUNNER_TEMP/environments.json"
           echo "ENVIRONMENTS_JSON=$RUNNER_TEMP/environments.json" >> "$GITHUB_ENV"
-      - name: Wait for the image, the branch and the work tree
-        wait: [pull, fetch, worktree]
+      - name: Wait for the image and the work tree
+        wait: [pull, worktree]
       - name: Stand up the host services
         if: steps.seen.outputs.ours == 'true'
         run: quartermaster/scripts/host-setup
