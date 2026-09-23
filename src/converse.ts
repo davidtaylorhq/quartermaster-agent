@@ -99,6 +99,8 @@ const where: Situation = {
 
 try {
   if (opening) {
+    // The sandbox is up; the two inside `turn` carry it to the wait.
+    progress("next");
     const asked = waiting();
     const history = await thread(new Set(asked.map((m) => String(m.id))));
     await turn(first(where, history, render(asked)), false);
