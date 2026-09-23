@@ -60,7 +60,10 @@ environments:
     cmd: /sbin/boot          # optional, as Docker means CMD
     user: discourse
     mount: /src
-    setup: bin/agent-setup   # once, on boot, inside, at the mount point
+    setup: |                 # once, on boot, inside, at the mount point
+      until pg_isready -q; do sleep 2; done
+      bundle install --jobs "$(nproc)" --retry 3
+      bin/rake db:create db:migrate
 
   - name: frontend
     description: Node and pnpm. Lint, prettier, ember tests.
@@ -84,6 +87,10 @@ There are no shortcuts into an environment, so the agent always knows a command 
 `mount` is where the checkout appears, already holding the agent's edits, and commands run there. `image`, `entrypoint` and `cmd` mean what Docker means by them; omit either of the last two for the image's own.
 
 `setup` runs once, as `user`, when the container is created, and may assume a clean slate. An environment that stops is not started again, so nothing ever runs it twice. The image needs `bash`.
+
+Write the commands here rather than calling a script in your repository. This file comes from your default branch, but the checkout it runs against is the pull request's, and a branch opened before you added that script does not have it. Its commands should read the work tree — installing what the pull request's lockfile says, not your default branch's — but what those commands *are* should not depend on the branch being worked on. Anything too long for this belongs in the image.
+
+A failed `setup` is reported to the agent and the environment is still usable, because a half-prepared environment the agent knows about is more use than none. Expect to see it work round the gap, and say that it did.
 
 Each environment starts only when the agent first asks for it, and a cold start costs a couple of minutes, so a project with several never pays for the ones a run did not use.
 
