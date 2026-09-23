@@ -5,7 +5,7 @@ import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:f
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-const gate = join(import.meta.dirname, "..", "scripts", "host-gate");
+const gate = join(import.meta.dirname, "host-gate");
 let home: string;
 let relay: string;
 let stubs: string;

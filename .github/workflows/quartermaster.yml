@@ -200,7 +200,6 @@ jobs:
           ref: ${{ steps.self.outputs.sha }}
           fetch-depth: 1
           sparse-checkout: |
-            scripts
             bin
             lib
             vendor
@@ -297,11 +296,11 @@ jobs:
         wait: [pull, worktree]
       - name: Stand up the host services
         if: steps.seen.outputs.ours == 'true'
-        run: quartermaster/scripts/host-setup
+        run: quartermaster/bin/host-setup
       - name: Run the agent
         if: steps.seen.outputs.ours == 'true'
         run: |
-          quartermaster/scripts/sandbox-up
+          quartermaster/bin/sandbox-up
           quartermaster/bin/converse.ts first
       - name: Answer anything that follows
         if: steps.seen.outputs.ours == 'true'
