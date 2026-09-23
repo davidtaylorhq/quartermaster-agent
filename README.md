@@ -28,7 +28,8 @@ jobs:
     with:
       mention: '@acmebot'
     secrets:
-      anthropic-oauth-token: ${{ secrets.ANTHROPIC_OAUTH_TOKEN }}
+      provider-env: |
+        CLAUDE_CODE_OAUTH_TOKEN=${{ secrets.ANTHROPIC_OAUTH_TOKEN }}
 ```
 
 ## Settings
@@ -38,6 +39,8 @@ jobs:
 | `mention` | *required* | What people type, including the `@` |
 | `bot-name` | the mention without its `@` | Name on the agent's commits |
 | `bot-login` | `github-actions[bot]` | Login the agent's comments appear under |
+| `provider` | unset | Passed to term-llm as `--provider` |
+| `term-llm-config` | unset | Path to a term-llm configuration of your own |
 | `environments` | `.github/quartermaster/environments.yml` | What the agent may run commands in |
 | `trusted-associations` | `OWNER,MEMBER,COLLABORATOR` | Who may instruct the agent |
 | `followup-window` | `60` | Seconds the sandbox is held open for a follow-up |
@@ -47,6 +50,49 @@ jobs:
 | `term-llm-version` | pinned | |
 | `runs-on` | `ubuntu-latest` | |
 | `timeout-minutes` | `45` | |
+
+## Choosing a model
+
+The agent runs [term-llm](https://github.com/samsaffron/term-llm), so it reaches any model term-llm does, and nothing here knows the name of a single provider.
+
+Credentials arrive as one secret you compose from your own:
+
+```yaml
+with:
+  provider: openai
+secrets:
+  provider-env: |
+    OPENAI_API_KEY=${{ secrets.MY_OPENAI_KEY }}
+```
+
+term-llm resolves those by its usual conventions. Leave `provider` unset and it chooses from whatever credentials it finds; set it to a name, or to `name:model`, to be explicit.
+
+For a self-hosted or OpenAI-compatible endpoint, point `term-llm-config` at a term-llm configuration of your own:
+
+```yaml
+default_provider: local
+providers:
+  local:
+    type: openai-compatible
+    url: https://llm.internal/v1/chat/completions
+    model: qwen3-coder
+    api_key: ${MY_LLM_KEY}
+```
+
+term-llm also reads `op://` for 1Password, `file://`, `srv://` and `$(...)` in any config value, so a multi-line credential can be passed base64-encoded and decoded there.
+
+### Where the credentials go
+
+They are masked before they reach a log, never written into the docker command line, and kept out of `$GITHUB_ENV`.
+
+They do reach term-llm's own environment, because a provider that shells out reads them from there. So two things take them back out again:
+
+- **Every shell command the agent runs is stripped of them.** term-llm starts each one with `$SHELL`, which is a shell of ours that drops those names first.
+- **Anything the agent publishes is redacted.** A reply is the one thing it writes that leaves the sandbox, and log masking does not reach a pull request comment.
+
+Everything named in `provider-env` is redacted, not only the secret-looking ones, so avoid passing values you would want quoted back to you.
+
+What remains is that the agent's own process holds them, and there is no egress filtering, so a determined prompt injection could still send them somewhere. Removing them from the container entirely needs a proxy on the runner, which is not built yet.
 
 ## Running tests and linters
 
@@ -113,6 +159,5 @@ Who may instruct it is settled by GitHub's author association, so a comment from
 ## What this does not do yet
 
 - **No egress filtering.** The container can reach the whole internet. A prompt injection in a pull request cannot steal a GitHub token, because there isn't one, but it can talk to anything.
-- **The model credential is inside the container.** The GitHub token is not, but the key that pays for inference is.
+- **The model credential is inside the container.** The GitHub token is not, but the key that pays for inference is. It is stripped from the agent's shell commands and redacted from anything it posts, which is not the same as it not being there.
 - **The agent prompt still names Discourse.** Letting a project add its own instructions is the next change.
-- **One provider.** Claude, through `claude-bin`.

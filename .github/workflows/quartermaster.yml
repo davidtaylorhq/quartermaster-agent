@@ -15,6 +15,21 @@ on:
         description: "Login the agent's own comments are posted under."
         type: string
         default: "github-actions[bot]"
+      provider:
+        description: >-
+          Passed to term-llm as `--provider`, so it takes the same forms:
+          a provider name, or `name:model`. Leave it unset to use the
+          `default_provider` in your own term-llm configuration. Left unset,
+          term-llm chooses from the credentials it was given.
+        type: string
+        default: ""
+      term-llm-config:
+        description: >-
+          Path in this repository to a term-llm configuration for the agent to
+          use. Needed for a self-hosted or OpenAI-compatible endpoint, and for
+          anything else an environment variable cannot say.
+        type: string
+        default: ""
       environments:
         description: >-
           Path in this repository to the development environments the agent may
@@ -50,7 +65,10 @@ on:
         type: number
         default: 45
     secrets:
-      anthropic-oauth-token:
+      provider-env:
+        description: >-
+          Lines of `NAME=value` giving the agent's provider what it needs to
+          reach a model. Compose it from your own secrets.
         required: true
 
 jobs:
@@ -125,6 +143,11 @@ jobs:
           [ -n "$name" ] || name="${MENTION#@}"
           echo "BOT_NAME=$name" >> "$GITHUB_ENV"
 
+      - name: Read the model credentials
+        env:
+          PROVIDER_ENV: ${{ secrets.provider-env }}
+        run: quartermaster/scripts/provider-env "$RUNNER_TEMP/provider.env"
+
       - name: Check out the project's configuration
         uses: actions/checkout@v7
         with:
@@ -133,7 +156,9 @@ jobs:
           # able to choose it.
           ref: ${{ github.event.repository.default_branch }}
           fetch-depth: 1
-          sparse-checkout: ${{ inputs.environments }}
+          sparse-checkout: |
+            ${{ inputs.environments }}
+            ${{ inputs.term-llm-config }}
           sparse-checkout-cone-mode: false
           path: project
           persist-credentials: false
@@ -270,7 +295,8 @@ jobs:
           AGENT_DIR: ${{ github.workspace }}/quartermaster/agent
           SKILLS_DIR: ${{ github.workspace }}/quartermaster/agent/skills
           MCP_TEMPLATE: ${{ github.workspace }}/quartermaster/agent/mcp.json
-          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.anthropic-oauth-token }}
+          PROVIDER: ${{ inputs.provider }}
+          TERM_LLM_CONFIG: ${{ inputs.term-llm-config && format('{0}/project/{1}', github.workspace, inputs.term-llm-config) || '' }}
           COMMENT_ID: ${{ steps.ack.outputs.id }}
           PROGRESS_FILE: ${{ runner.temp }}/progress.json
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -333,7 +359,7 @@ jobs:
           PROGRESS_FILE: ${{ runner.temp }}/progress.json
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           MENTION_FILE: ${{ runner.temp }}/mention.json
-          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.anthropic-oauth-token }}
+          PROVIDER: ${{ inputs.provider }}
           REPO: ${{ github.repository }}
         run: |
           # The sandbox is still up. Answering here costs the model's time and

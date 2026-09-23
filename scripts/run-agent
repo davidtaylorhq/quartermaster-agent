@@ -9,7 +9,6 @@ set -Eeuo pipefail
 
 : "${RUNNER_TEMP:?}" "${BRIDGE_IP:?}" "${SSH_PORT:?}"
 : "${CLIENT_KEY:?}" "${HEAD_REF:?}" "${AGENT_DIR:?}"
-: "${CLAUDE_CODE_OAUTH_TOKEN:?}"
 : "${GATE_USER:?}" "${SKILLS_DIR:?}" "${TERM_LLM_VERSION:?}" "${WORKTREE_VOLUME:?}"
 : "${MCP_TEMPLATE:?}"
 
@@ -19,6 +18,19 @@ HOME_DIR=/home/agent
 SSH_OPTS="-i $HOME_DIR/.ssh/gate -p $SSH_PORT -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
 
 log() { echo "[sandbox] $*" >&2; }
+
+# The model's credentials have to be in term-llm's environment, because a
+# provider that shells out reads them from there. Nothing the agent runs has
+# any use for them, and term-llm starts every shell tool call with $SHELL, so
+# a shell of our own takes them back out again.
+creds=()
+if [ -n "${PROVIDER_ENV_FILE:-}" ] && [ -s "$PROVIDER_ENV_FILE" ]; then
+  set -a
+  # shellcheck disable=SC1090
+  . "$PROVIDER_ENV_FILE"
+  set +a
+  for name in $PROVIDER_ENV_NAMES; do creds+=(-e "$name"); done
+fi
 
 dump_host_log() {
   echo "[sandbox] --- sshd log ---" >&2
@@ -31,7 +43,8 @@ as_agent() {
     -e HOME="$HOME_DIR" \
     -e GIT_SSH_COMMAND="ssh $SSH_OPTS" \
     -e HEAD_REF="$HEAD_REF" \
-    -e CLAUDE_CODE_OAUTH_TOKEN="$CLAUDE_CODE_OAUTH_TOKEN" \
+    -e SHELL=/usr/local/bin/qm-shell \
+    "${creds[@]}" \
     "$CONTAINER" bash -lc 'export PATH="$HOME/.local/bin:$PATH"; '"$1"
 }
 
@@ -52,6 +65,15 @@ docker exec -u root "$CONTAINER" bash -c '
   chown agent:agent /src
 '
 
+docker exec -u root -e STRIP="${PROVIDER_ENV_NAMES:-}" "$CONTAINER" bash -c '
+  {
+    echo "#!/bin/sh"
+    printf "exec env"
+    for name in $STRIP; do printf " -u %s" "$name"; done
+    echo " /bin/bash \"\$@\""
+  } > /usr/local/bin/qm-shell
+  chmod 0755 /usr/local/bin/qm-shell
+'
 docker cp "$CLIENT_KEY" "$CONTAINER:$HOME_DIR/.ssh/gate"
 docker exec -u root "$CONTAINER" chown agent:agent "$HOME_DIR/.ssh/gate"
 docker exec -u root "$CONTAINER" chmod 600 "$HOME_DIR/.ssh/gate"
@@ -130,6 +152,10 @@ sed -e "s#__KEY__#$HOME_DIR/.ssh/gate#" \
     -e "s#__GATE_USER__#$GATE_USER#" \
     "$MCP_TEMPLATE" > "$RUNNER_TEMP/mcp.json"
 docker cp "$RUNNER_TEMP/mcp.json" "$CONTAINER:$HOME_DIR/.config/term-llm/mcp.json"
+if [ -n "${TERM_LLM_CONFIG:-}" ] && [ -s "$TERM_LLM_CONFIG" ]; then
+  log "installing the project's term-llm configuration"
+  docker cp "$TERM_LLM_CONFIG" "$CONTAINER:$HOME_DIR/.config/term-llm/config.yaml"
+fi
 
 docker exec -u root "$CONTAINER" chown -R agent:agent "$HOME_DIR/.config"
 
@@ -150,7 +176,7 @@ set +e
 as_agent "
   term-llm ask \
     --agent quartermaster \
-    --provider claude-bin \
+    ${PROVIDER:+--provider "$PROVIDER"} \
     --session-db $HOME_DIR/session.db \
     --yolo \
     --text \

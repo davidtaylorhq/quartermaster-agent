@@ -5,13 +5,22 @@
 # environment — is still there, so this is the model's time and nothing else.
 set -Eeuo pipefail
 
-: "${RUNNER_TEMP:?}" "${SSH_PORT:?}" "${CLAUDE_CODE_OAUTH_TOKEN:?}"
+: "${RUNNER_TEMP:?}" "${SSH_PORT:?}"
 
 CONTAINER=quartermaster_sandbox
 HOME_DIR=/home/agent
 SSH_OPTS="-i $HOME_DIR/.ssh/gate -p $SSH_PORT -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
 
 log() { echo "[sandbox] $*" >&2; }
+
+creds=()
+if [ -n "${PROVIDER_ENV_FILE:-}" ] && [ -s "$PROVIDER_ENV_FILE" ]; then
+  set -a
+  # shellcheck disable=SC1090
+  . "$PROVIDER_ENV_FILE"
+  set +a
+  for name in $PROVIDER_ENV_NAMES; do creds+=(-e "$name"); done
+fi
 
 # A turn may want the development environment too, and everything it does
 # happens behind the gate where the runner sees none of it.
@@ -23,7 +32,8 @@ as_agent() {
   docker exec -i -u agent -w /src \
     -e HOME="$HOME_DIR" \
     -e GIT_SSH_COMMAND="ssh $SSH_OPTS" \
-    -e CLAUDE_CODE_OAUTH_TOKEN="$CLAUDE_CODE_OAUTH_TOKEN" \
+    -e SHELL=/usr/local/bin/qm-shell \
+    "${creds[@]}" \
     "$CONTAINER" bash -lc 'export PATH="$HOME/.local/bin:$PATH"; '"$1"
 }
 
@@ -37,7 +47,7 @@ set +e
 as_agent "
   term-llm ask \
     --agent quartermaster \
-    --provider claude-bin \
+    ${PROVIDER:+--provider "$PROVIDER"} \
     --session-db $HOME_DIR/session.db \
     --resume \
     --yolo \

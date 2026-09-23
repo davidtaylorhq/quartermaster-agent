@@ -21,7 +21,7 @@ FOOTER = (
 
 
 def sign(body):
-    body = body.strip()
+    body = redact(body).strip()
     return f"{body}\n\n{FOOTER}" if body else FOOTER
 
 
@@ -37,7 +37,8 @@ def read_findings(path):
             print(f"ignoring unreadable line comment on line {n}", file=sys.stderr)
             continue
         if {"path", "line", "body"} <= f.keys():
-            out.append({"path": f["path"], "line": f["line"], "side": "RIGHT", "body": f["body"]})
+            out.append({"path": f["path"], "line": f["line"], "side": "RIGHT",
+                        "body": redact(f["body"])})
         else:
             print(f"ignoring incomplete line comment on line {n}", file=sys.stderr)
     return out
@@ -49,6 +50,25 @@ def gh(args, payload=""):
     if p.returncode != 0:
         print(p.stderr.strip(), file=sys.stderr)
     return p.returncode == 0
+
+
+def redact(text):
+    """Take any credential back out of what is about to be published.
+
+    The agent holds them so its provider can reach the model, and a reply is
+    the one thing it writes that leaves the sandbox. Log masking does not
+    reach a pull request comment.
+    """
+    path = os.environ.get("PROVIDER_ENV_FILE")
+    if not text or not path or not os.path.exists(path):
+        return text
+    with open(path) as handle:
+        for line in handle:
+            _, _, value = line.partition("=")
+            value = value.strip()
+            if len(value) > 7:
+                text = text.replace(value, "[redacted]")
+    return text
 
 
 def main():

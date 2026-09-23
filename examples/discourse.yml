@@ -20,4 +20,5 @@ jobs:
     with:
       mention: '@discoursebot'
     secrets:
-      anthropic-oauth-token: ${{ secrets.ANTHROPIC_OAUTH_TOKEN }}
+      provider-env: |
+        CLAUDE_CODE_OAUTH_TOKEN=${{ secrets.ANTHROPIC_OAUTH_TOKEN }}
