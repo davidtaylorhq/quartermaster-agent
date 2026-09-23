@@ -8,6 +8,7 @@
 import { spawn, spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
+import { load } from "./credentials.ts";
 import { publish } from "./post.ts";
 import { again, first, type Situation } from "./prompt.ts";
 
@@ -22,6 +23,12 @@ const sandbox = JSON.parse(readFileSync(join(temp, "sandbox.json"), "utf8")) as 
 
 // Their stdout is what they produce; their stderr is for whoever reads the
 // log, so it goes straight there rather than being collected and dropped.
+// The provider's credentials are named in the sandbox description and read
+// from the runner, so `docker exec -e NAME` can pass them by name. They have
+// to be in this process to be passed on: the shell that built the sandbox had
+// them and has since exited.
+load(process.env.PROVIDER_ENV_FILE, process.env);
+
 function script(name: string, args: string[] = [], env: NodeJS.ProcessEnv = {}) {
   return spawnSync(join(here, name), args, {
     encoding: "utf8",
@@ -85,8 +92,16 @@ function ask(prompt: string, resume: boolean): number {
 async function turn(prompt: string, resume: boolean) {
   const status = ask(prompt, resume);
   progress("next");
-  await publish();
+
+  // An agent that failed usually left nothing to publish, and saying so
+  // instead of what went wrong hides the only useful part of the log.
+  try {
+    await publish();
+  } catch (error) {
+    if (status === 0) throw error;
+  }
   progress("next");
+
   if (status !== 0) throw new Error(`the agent exited ${status}`);
 }
 
