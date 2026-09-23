@@ -4,10 +4,12 @@ import { spawn, spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { load } from "./credentials.ts";
+import { render, waiting } from "./mentions.ts";
+import { claim } from "./next-mention.ts";
 import { publish } from "./post.ts";
 import { again, first, type Situation } from "./prompt.ts";
+import { thread } from "./thread.ts";
 
-const here = import.meta.dirname;
 const temp = process.env.RUNNER_TEMP!;
 const sandbox = JSON.parse(readFileSync(join(temp, "sandbox.json"), "utf8")) as {
   container: string;
@@ -18,14 +20,6 @@ const sandbox = JSON.parse(readFileSync(join(temp, "sandbox.json"), "utf8")) as 
 
 // docker passes credentials by name, so they must be in this process too.
 load(process.env.PROVIDER_ENV_FILE, process.env);
-
-function script(name: string, args: string[] = [], env: NodeJS.ProcessEnv = {}) {
-  return spawnSync(join(here, name), args, {
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "inherit"],
-    env: { ...process.env, ...env },
-  });
-}
 
 function progress(...args: string[]) {
   spawnSync(process.env.PROGRESS_SCRIPT!, args, { stdio: "inherit" });
@@ -45,9 +39,6 @@ function ask(prompt: string, resume: boolean): number {
     rmSync(join(temp, leftover), { force: true });
   }
 
-  writeFileSync(join(temp, "prompt.txt"), prompt);
-  spawnSync("docker", ["cp", join(temp, "prompt.txt"), `${sandbox.container}:${sandbox.home}/prompt.txt`]);
-
   const command = [
     "term-llm ask",
     "--agent quartermaster",
@@ -57,7 +48,7 @@ function ask(prompt: string, resume: boolean): number {
     "--yolo --text --stats",
     `--max-turns ${process.env.MAX_TURNS}`,
     `--timeout ${process.env.AGENT_TIMEOUT}`,
-    `"$(cat ${sandbox.home}/prompt.txt)"`,
+    '"$QM_PROMPT"',
   ].filter(Boolean).join(" ");
 
   const run = spawnSync("docker", [
@@ -65,6 +56,7 @@ function ask(prompt: string, resume: boolean): number {
     "-e", `HOME=${sandbox.home}`,
     "-e", `GIT_SSH_COMMAND=ssh ${sandbox.sshOptions}`,
     "-e", "SHELL=/usr/local/bin/qm-shell",
+    "-e", `QM_PROMPT=${prompt}`,
     ...sandbox.credentials.flatMap((name) => ["-e", name]),
     sandbox.container, "bash", "-lc",
     `export PATH="$HOME/.local/bin:$PATH"; ${command} 2>&1`,
@@ -102,13 +94,13 @@ const where: Situation = {
 };
 
 try {
-  const skip = script("mentions.ts", [], { IDS_ONLY: "1" }).stdout.trim();
-  const history = script("thread.ts", [], { SKIP_COMMENT_IDS: skip }).stdout;
-  await turn(first(where, history, script("mentions.ts").stdout), false);
+  const asked = waiting();
+  const history = await thread(new Set(asked.map((m) => String(m.id))));
+  await turn(first(where, history, render(asked)), false);
 
-  while (script("next-mention.ts", ["--wait"]).status === 0) {
+  while (await claim(true)) {
     progress("next", "Working", "Replying", `Waiting ${process.env.FOLLOWUP_WINDOW}s for further instructions`);
-    await turn(again(script("mentions.ts").stdout), true);
+    await turn(again(render(waiting())), true);
   }
   progress("done");
 } finally {

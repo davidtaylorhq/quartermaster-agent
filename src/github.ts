@@ -1,6 +1,11 @@
 // Everything this says to GitHub.
 const API = "https://api.github.com";
 
+// Who may instruct the agent. Anyone else can comment, and is quoted as such.
+export const TRUSTED = new Set(
+  (process.env.TRUSTED_ASSOCIATIONS ?? "OWNER,MEMBER,COLLABORATOR").split(","),
+);
+
 export type Comment = {
   id: number;
   body: string;

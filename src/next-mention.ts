@@ -3,12 +3,9 @@
 //
 // The reaction is what stops two runs answering the same comment.
 import { writeFileSync } from "node:fs";
-import { listComments, request, paginate, type Comment } from "./github.ts";
+import { listComments, request, paginate, TRUSTED, type Comment } from "./github.ts";
 
 const CLAIM = "eyes";
-const ALLOWED = new Set(
-  (process.env.TRUSTED_ASSOCIATIONS ?? "OWNER,MEMBER,COLLABORATOR").split(","),
-);
 const MACRO = process.env.MENTION!;
 // Older than this is a backlog, and answering a backlog at once is worse
 // than leaving it.
@@ -18,7 +15,6 @@ const WINDOW = Number(process.env.FOLLOWUP_WINDOW ?? "60");
 const repo = process.env.GITHUB_REPOSITORY!;
 const issue = process.env.ISSUE_NUMBER!;
 const out = process.env.MENTION_FILE!;
-const wait = process.argv.includes("--wait");
 
 async function claimed(comment: Comment): Promise<boolean> {
   // The count arrives with the comment; only a non-zero one needs a lookup.
@@ -29,7 +25,7 @@ async function claimed(comment: Comment): Promise<boolean> {
   return reactions.some((r) => r.content === CLAIM && r.user.login.endsWith("[bot]"));
 }
 
-async function claim(id: number): Promise<boolean> {
+async function react(id: number): Promise<boolean> {
   try {
     await request("POST", `/repos/${repo}/issues/comments/${id}/reactions`, {
       content: CLAIM,
@@ -49,7 +45,7 @@ async function outstanding(cutoff: string): Promise<Comment[]> {
   return all
     .filter((c) => c.created_at >= cutoff)
     .filter((c) => !c.user.login.endsWith("[bot]"))
-    .filter((c) => ALLOWED.has(c.author_association))
+    .filter((c) => TRUSTED.has(c.author_association))
     .filter((c) => (c.body ?? "").includes(MACRO))
     .sort((a, b) => a.created_at.localeCompare(b.created_at));
 }
@@ -58,7 +54,7 @@ async function take(cutoff: string): Promise<boolean> {
   const taken = [];
   for (const c of await outstanding(cutoff)) {
     if (await claimed(c)) continue;
-    if (!(await claim(c.id))) continue;
+    if (!(await react(c.id))) continue;
     taken.push({ id: c.id, author: c.user.login, body: c.body, created_at: c.created_at });
   }
   if (taken.length === 0) return false;
@@ -70,16 +66,22 @@ async function take(cutoff: string): Promise<boolean> {
   return true;
 }
 
-const cutoff = new Date(Date.now() - MAX_AGE_HOURS * 3600_000)
-  .toISOString()
-  .replace(/\.\d+Z$/, "Z");
-const deadline = Date.now() + (wait ? WINDOW * 1000 : 0);
+export async function claim(wait: boolean): Promise<boolean> {
+  const cutoff = new Date(Date.now() - MAX_AGE_HOURS * 3600_000)
+    .toISOString()
+    .replace(/\.\d+Z$/, "Z");
+  const deadline = Date.now() + (wait ? WINDOW * 1000 : 0);
 
-while (true) {
-  if (await take(cutoff)) process.exit(0);
-  if (Date.now() >= deadline) {
-    console.error("nothing outstanding");
-    process.exit(1);
+  while (true) {
+    if (await take(cutoff)) return true;
+    if (Date.now() >= deadline) {
+      console.error("nothing outstanding");
+      return false;
+    }
+    await new Promise((r) => setTimeout(r, 3000));
   }
-  await new Promise((r) => setTimeout(r, 3000));
+}
+
+if (import.meta.filename === process.argv[1]) {
+  process.exit((await claim(process.argv.includes("--wait"))) ? 0 : 1);
 }
