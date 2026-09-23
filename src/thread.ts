@@ -8,8 +8,8 @@ const WIDTH = 800;
 
 // Our own bookkeeping is not conversation.
 const NOISE = ["Superseded by a newer mention.", "The run failed.", "Starting…", "On it!"];
-// Both spellings appear in a thread; trimming at the inner one strands the
-// outer tag.
+// A thread holds replies signed both ways; the wrapped one strands its outer
+// tag if trimmed at the inner.
 const FOOTERS = ['<div align="right"><sub>:robot:', "<sub>:robot:"];
 
 export function withoutFooter(body: string): string {

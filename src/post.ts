@@ -7,8 +7,7 @@ import { request } from "./github.ts";
 
 // On the reply only: on every line comment it would be noise.
 const FOOTER =
-  '<div align="right"><sub>:robot: AI generated response - ' +
-  "help improve with \u{1F44D} or \u{1F44E}</sub></div>";
+  "<sub>:robot: AI generated response - help improve with \u{1F44D} or \u{1F44E}</sub>";
 
 const temp = process.env.RUNNER_TEMP!;
 const repo = process.env.GITHUB_REPOSITORY!;
