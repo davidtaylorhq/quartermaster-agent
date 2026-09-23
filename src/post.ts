@@ -4,16 +4,10 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { request } from "./github.ts";
-import { spent } from "./timing.ts";
 
 // On the reply only: on every line comment it would be noise.
-function footer(): string {
-  const took = spent();
-  return (
-    `<sub>:robot: AI generated response${took ? ` - ${took}` : ""}` +
-    " - help improve with \u{1F44D} or \u{1F44E}</sub>"
-  );
-}
+const FOOTER =
+  "<sub>:robot: AI generated response - help improve with \u{1F44D} or \u{1F44E}</sub>";
 
 const temp = process.env.RUNNER_TEMP!;
 const repo = process.env.GITHUB_REPOSITORY!;
@@ -21,7 +15,7 @@ const issue = process.env.ISSUE_NUMBER!;
 
 function sign(body: string): string {
   const signed = body.trim();
-  return signed ? `${signed}\n\n${footer()}` : footer();
+  return signed ? `${signed}\n\n${FOOTER}` : FOOTER;
 }
 
 type Finding = { path: string; line: number; side: "RIGHT"; body: string };
