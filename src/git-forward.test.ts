@@ -123,3 +123,26 @@ test("github being unreachable is reported, not hung on", async () => {
   assert.equal(await response.text(), "upstream unreachable\n");
   dead.close();
 });
+
+// A pack can be cut off part way. If that took the forwarder down, every
+// later fetch in the run would fail with nothing to explain it.
+test("an upstream that stops mid-response does not take the forwarder with it", async () => {
+  const flaky = createServer((_req, res) => {
+    res.writeHead(200, { "content-type": "application/x-git-upload-pack-result" });
+    res.write("PACK-par");
+    setTimeout(() => res.socket?.destroy(), 20);
+  });
+  await new Promise<void>((done) => flaky.listen(0, "127.0.0.1", done));
+
+  const front = createServer(handler(REPO, AUTH, at(flaky)));
+  await new Promise<void>((done) => front.listen(0, "127.0.0.1", done));
+
+  await assert.rejects(fetch(at(front) + READ).then((r) => r.text()));
+
+  replies(200, { "content-type": "text/plain" }, "still here");
+  const after = await fetch(at(forward) + READ);
+  assert.equal(await after.text(), "still here");
+
+  flaky.close();
+  front.close();
+});

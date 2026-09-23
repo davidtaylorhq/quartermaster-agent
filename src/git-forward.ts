@@ -5,6 +5,7 @@
 // is the whole policy. Writing goes to the ssh gate instead.
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 
 // Ours to set: a streamed body has a different length, and this is a new hop.
 const OURS = ["host", "connection", "content-length", "transfer-encoding", "authorization"];
@@ -19,7 +20,9 @@ export function handler(repo: string, authorization: string, upstream = "https:/
   return async (req: IncomingMessage, res: ServerResponse) => {
     const fail = (status: number, why: string) => {
       console.error(`${why}: ${req.method} ${req.url}`);
-      res.writeHead(status, { "content-type": "text/plain" }).end(`${why}\n`);
+      // Past the headers there is no status left to send, only a broken pipe.
+      if (res.headersSent) res.destroy();
+      else res.writeHead(status, { "content-type": "text/plain" }).end(`${why}\n`);
     };
     if (!permitted(repo, req.method ?? "", req.url ?? "")) return fail(403, "not permitted");
 
@@ -41,7 +44,8 @@ export function handler(repo: string, authorization: string, upstream = "https:/
       if (answer.status >= 300 && answer.status < 400) return fail(502, "upstream redirected");
 
       res.writeHead(answer.status, { "content-type": answer.headers.get("content-type") ?? "application/octet-stream" });
-      answer.body ? Readable.fromWeb(answer.body as never).pipe(res) : res.end();
+      if (!answer.body) return res.end();
+      await pipeline(Readable.fromWeb(answer.body as never), res);
     } catch (error) {
       console.error(error);
       fail(502, "upstream unreachable");
