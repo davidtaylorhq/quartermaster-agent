@@ -14,17 +14,27 @@ case "$SSH_ORIGINAL_COMMAND" in
       -e GITHUB_READ_ONLY \
       "$MCP_IMAGE"
     ;;
-  dev)
-    # Bring the development environment up if it is not already, then hand the
-    # command on stdin to a shell inside it. Nothing is parsed here either.
-    # Keep it off this connection's stdin: that is the command the agent sent,
-    # and the container it starts things in would read it as input.
-    if [ -z "${DEV:-}" ]; then
-      echo "$BOT_NAME: this project has no development environment" >&2
+  "dev "*)
+    # The only verb that takes an argument. It is looked up in what the project
+    # declared, never interpreted: a name nobody declared is refused here,
+    # before it reaches docker or a shell.
+    name=${SSH_ORIGINAL_COMMAND#dev }
+    if ! jq -e --arg n "$name" 'has($n)' "$ENVIRONMENTS" >/dev/null 2>&1; then
+      echo "$BOT_NAME: no environment called '$name'" >&2
+      echo "$BOT_NAME: this project has: $(jq -r 'keys | join(", ")' "$ENVIRONMENTS")" >&2
       exit 1
     fi
-    "$HOME/.quartermaster/dev-boot" </dev/null || exit 1
-    exec "$DEV" exec
+
+    # Keep the boot off this connection's stdin: that is the command the agent
+    # sent, and anything the environment starts would read it as input.
+    "$HOME/.quartermaster/dev-boot" "$name" </dev/null || exit 1
+
+    user=$(jq -r --arg n "$name" '.[$n].user // ""' "$ENVIRONMENTS")
+    mount=$(jq -r --arg n "$name" '.[$n].mount' "$ENVIRONMENTS")
+    if [ -n "$user" ]; then
+      exec docker exec -i -u "$user" -w "$mount" -e CI=1 "quartermaster_dev_$name" bash -l
+    fi
+    exec docker exec -i -w "$mount" -e CI=1 "quartermaster_dev_$name" bash -l
     ;;
   git-upload-pack*)
     exec git-upload-pack "$RELAY"

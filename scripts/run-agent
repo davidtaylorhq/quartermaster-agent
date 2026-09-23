@@ -56,28 +56,27 @@ docker cp "$CLIENT_KEY" "$CONTAINER:$HOME_DIR/.ssh/gate"
 docker exec -u root "$CONTAINER" chown agent:agent "$HOME_DIR/.ssh/gate"
 docker exec -u root "$CONTAINER" chmod 600 "$HOME_DIR/.ssh/gate"
 
-# Anything the sandbox has no runtime for runs in the development environment
-# instead of failing here. A shimmed name reaches it without the agent having
-# to know: shimming the interpreter a project's own scripts start with
-# catches every one of them at once.
-if [ -n "${DEV_SCRIPT:-}" ]; then
+# The sandbox has git and little else. Anything more runs in one of the
+# project's development environments, named on the command line, so both the
+# agent and the log say where a command actually ran.
+if [ "$(jq 'length' "$ENVIRONMENTS_JSON")" != 0 ]; then
   log "installing the development environment wrapper"
   docker exec -u root "$CONTAINER" bash -c "
     set -e
     cat > /usr/local/bin/dev <<'WRAP'
 #!/bin/bash
-# Run a command in this project's development environment.
+# Run a command in one of this project's development environments.
 set -euo pipefail
-printf 'cd %q\n' \"\$PWD\" > /tmp/dev.\$\$
-printf '%q ' \"\$@\" >> /tmp/dev.\$\$
-printf '\n' >> /tmp/dev.\$\$
-exec ssh $SSH_OPTS $GATE_USER@host.docker.internal dev < /tmp/dev.\$\$
+if [ \$# -lt 2 ]; then
+  echo 'usage: dev <environment> <command>...' >&2
+  exit 2
+fi
+name=\$1
+shift
+{ printf '%q ' \"\$@\"; printf '\n'; } > /tmp/dev.\$\$
+exec ssh $SSH_OPTS $GATE_USER@host.docker.internal \"dev \$name\" < /tmp/dev.\$\$
 WRAP
     chmod 0755 /usr/local/bin/dev
-    for c in ${DEV_SHIMS:-}; do
-      printf '#!/bin/sh\nexec /usr/local/bin/dev %s \"\$@\"\n' \"\$c\" > /usr/local/bin/\$c
-      chmod 0755 /usr/local/bin/\$c
-    done
   "
 fi
 
@@ -103,7 +102,28 @@ as_agent "
 log "installing the agent"
 docker exec -u root "$CONTAINER" install -d -o agent -g agent \
   "$HOME_DIR/.config/term-llm/agents" "$HOME_DIR/.config/term-llm/skills"
-docker cp "$AGENT_DIR/." "$CONTAINER:$HOME_DIR/.config/term-llm/agents/quartermaster"
+AGENT_TMP="$RUNNER_TEMP/agent"
+rm -rf "$AGENT_TMP"
+cp -r "$AGENT_DIR" "$AGENT_TMP"
+if [ "$(jq 'length' "$ENVIRONMENTS_JSON")" != 0 ]; then
+  {
+    echo
+    echo "## Development environments"
+    echo
+    echo "Commands needing more than git run in one of these:"
+    echo
+    jq -r 'to_entries[] | "    \(.key) — \(.value.description)"' "$ENVIRONMENTS_JSON"
+    echo
+    echo "Name the one you want:"
+    echo
+    jq -r 'to_entries[0] | "    dev \(.key) <command>"' "$ENVIRONMENTS_JSON"
+    echo
+    echo "Nothing runs in the sandbox itself, so a command on its own fails: there is no runtime for it there. Commands run at the environment's mount point."
+    echo
+    echo "The first command into an environment takes a few minutes while it starts; afterwards they are quick. Do not start one you have nothing to run in."
+  } >> "$AGENT_TMP/system.md"
+fi
+docker cp "$AGENT_TMP/." "$CONTAINER:$HOME_DIR/.config/term-llm/agents/quartermaster"
 docker cp "$SKILLS_DIR/." "$CONTAINER:$HOME_DIR/.config/term-llm/skills"
 sed -e "s#__KEY__#$HOME_DIR/.ssh/gate#" \
     -e "s#__SSH_PORT__#$SSH_PORT#" \

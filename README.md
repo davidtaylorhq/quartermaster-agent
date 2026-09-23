@@ -38,8 +38,7 @@ jobs:
 | `mention` | *required* | What people type, including the `@` |
 | `bot-name` | the mention without its `@` | Name on the agent's commits |
 | `bot-login` | `github-actions[bot]` | Login the agent's comments appear under |
-| `dev` | unset | Path to your development environment script |
-| `dev-shims` | unset | Commands the sandbox passes to it rather than failing on |
+| `environments` | `.github/quartermaster/environments.yml` | What the agent may run commands in |
 | `trusted-associations` | `OWNER,MEMBER,COLLABORATOR` | Who may instruct the agent |
 | `followup-window` | `60` | Seconds the sandbox is held open for a follow-up |
 | `max-comment-age-hours` | `1` | Older mentions are left alone |
@@ -51,28 +50,48 @@ jobs:
 
 ## Running tests and linters
 
-The sandbox holds git and little else, so anything needing a language runtime or a database happens in a development environment your project supplies. Point `dev` at a script in your repository that answers two verbs:
-
-```
-dev up      start it, or return at once if it is already up
-dev exec    exec a shell in it, reading the command on stdin
-```
-
-`up` may be called more than once and must be cheap when there is nothing to do. Its output goes to a log the runner follows, so write progress to stdout. `exec` must hand over to a shell, because the agent's command arrives on standard input.
-
-`WORKTREE_VOLUME` names a docker volume holding the checkout, already containing the agent's edits. Mount it wherever your environment expects the source.
-
-Name the commands you want redirected in `dev-shims`. A shimmed name reaches the development environment instead of failing in the sandbox, so shimming an interpreter catches every script that starts with it:
+The sandbox holds git and little else. Anything needing a language runtime or a database runs in a container you describe, in `.github/quartermaster/environments.yml`:
 
 ```yaml
-with:
-  dev: .github/quartermaster/dev
-  dev-shims: ruby bundle pnpm node npx psql rake rails
+environments:
+  - name: rails
+    description: Ruby, the database and the Rails app. Specs, migrations, rubocop.
+    image: discourse/discourse_dev:release
+    cmd: /sbin/boot          # optional, as Docker means CMD
+    user: discourse
+    mount: /src
+    setup: bin/agent-setup   # once, on boot, inside, at the mount point
+
+  - name: frontend
+    description: Node and pnpm. Lint, prettier, ember tests.
+    image: node:22-bookworm
+    user: node
+    mount: /src
+    setup: pnpm install --frozen-lockfile
 ```
 
-**The script is read from your default branch, never from the pull request.** It runs on the runner with the job token in scope, so a pull request must not be able to choose what it says.
+The agent names the one it wants:
 
-With no `dev` set, the agent reads, writes and answers, and the gate refuses to run anything.
+```
+dev rails bin/rspec spec/lib/text_sentinel_spec.rb
+dev frontend pnpm lint
+```
+
+There are no shortcuts into an environment, so the agent always knows a command is leaving the sandbox, and the log says where it ran.
+
+`description` is what the agent reads to choose between them, so write it for the agent.
+
+`mount` is where the checkout appears, already holding the agent's edits, and commands run there. `image`, `entrypoint` and `cmd` mean what Docker means by them; omit either of the last two for the image's own.
+
+`setup` runs once, as `user`, when the container is created, and may assume a clean slate. An environment that stops is not started again, so nothing ever runs it twice. The image needs `bash`.
+
+Each environment starts only when the agent first asks for it, and a cold start costs a couple of minutes, so a project with several never pays for the ones a run did not use.
+
+Two things are ours and not negotiable: `docker run` and its flags, so no project can open the sandbox by mounting the docker socket; and reconciling `user` to uid 1000, because that is what the sandbox writes the checkout as.
+
+**The file is read from your default branch, never from the pull request.** It decides what runs on the runner, so a pull request must not be able to choose it.
+
+With no such file the agent reads, writes and answers, and the gate refuses to run anything.
 
 ## How it works
 
