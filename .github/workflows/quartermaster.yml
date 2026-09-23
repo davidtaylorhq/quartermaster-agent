@@ -148,6 +148,13 @@ jobs:
           echo "ASSET_REPO=$repo" >> "$GITHUB_ENV"
           echo "ASSET_REF=$WORKFLOW_SHA" >> "$GITHUB_ENV"
 
+      - name: Pull the sandbox image
+        if: steps.seen.outputs.ours == 'true'
+        id: pull
+        background: true
+        env:
+          SANDBOX_IMAGE: ghcr.io/${{ steps.self.outputs.repo }}/sandbox:latest
+        run: docker pull "$SANDBOX_IMAGE"
       - name: Check out the agent
         if: steps.seen.outputs.ours == 'true'
         uses: actions/checkout@v7
@@ -191,28 +198,39 @@ jobs:
               IS_PULL_REQUEST: ${{ github.event.issue.pull_request && 'yes' || 'no' }}
               DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
             run: quartermaster/src/resolve.ts
-
-          - name: Check out the project's configuration
-            if: steps.seen.outputs.ours == 'true'
-            uses: actions/checkout@v7
-            with:
-              # The default branch, never the pull request head. What this says
-              # decides what runs on the runner, so a pull request must not be
-              # able to choose it.
-              ref: ${{ github.event.repository.default_branch }}
-              fetch-depth: 1
-              sparse-checkout: |
-                ${{ inputs.environments }}
-                ${{ inputs.term-llm-config }}
-              sparse-checkout-cone-mode: false
-              path: project
-              persist-credentials: false
-
-          - name: Pull the sandbox image
-            if: steps.seen.outputs.ours == 'true'
-            env:
-              SANDBOX_IMAGE: ghcr.io/${{ steps.self.outputs.repo }}/sandbox:latest
-            run: docker pull "$SANDBOX_IMAGE"
+      - name: Fetch the branch
+        if: steps.seen.outputs.ours == 'true'
+        id: fetch
+        background: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HEAD_REF: ${{ steps.pr.outputs.head_ref }}
+        run: |
+          # Only the sandbox ever reads a work tree, and it clones one for
+          # itself, so nothing here writes the files out.
+          auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          git init -q --bare "$RUNNER_TEMP/relay.git"
+          git --git-dir="$RUNNER_TEMP/relay.git" \
+            -c http.extraheader="AUTHORIZATION: basic $auth" \
+            fetch -q --depth 1 "${{ github.server_url }}/${{ github.repository }}.git" \
+            "+${{ steps.pr.outputs.ref }}:refs/heads/$HEAD_REF"
+      - name: Check out the project's configuration
+        if: steps.seen.outputs.ours == 'true'
+        id: config
+        background: true
+        uses: actions/checkout@v7
+        with:
+          # The default branch, never the pull request head. What this says
+          # decides what runs on the runner, so a pull request must not be
+          # able to choose it.
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 1
+          sparse-checkout: |
+            ${{ inputs.environments }}
+            ${{ inputs.term-llm-config }}
+          sparse-checkout-cone-mode: false
+          path: project
+          persist-credentials: false
       - name: Name the agent
         if: steps.seen.outputs.ours == 'true'
         run: |
@@ -224,6 +242,24 @@ jobs:
         env:
           PROVIDER_ENV: ${{ secrets.provider-env }}
         run: quartermaster/src/provider-env.ts "$RUNNER_TEMP/provider.env"
+      - name: Say we are on it
+        if: steps.seen.outputs.ours == 'true'
+        id: ack
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          PROGRESS_FILE: ${{ runner.temp }}/progress.json
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          id=$(quartermaster/src/progress.ts start \
+                 "Preparing the sandbox" \
+                 "Working" \
+                 "Replying" \
+                 "Waiting ${FOLLOWUP_WINDOW}s for further instructions")
+          echo "id=$id" >> "$GITHUB_OUTPUT"
+      - name: Wait for the project's configuration
+        wait: [config]
       - name: Read the project's development environments
         if: steps.seen.outputs.ours == 'true'
         env:
@@ -234,38 +270,8 @@ jobs:
           quartermaster/src/environments.ts \
             "project/$ENVIRONMENTS" "$RUNNER_TEMP/environments.json"
           echo "ENVIRONMENTS_JSON=$RUNNER_TEMP/environments.json" >> "$GITHUB_ENV"
-      - parallel:
-          - name: Say we are on it
-            if: steps.seen.outputs.ours == 'true'
-            id: ack
-            env:
-              GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-              GITHUB_REPOSITORY: ${{ github.repository }}
-              ISSUE_NUMBER: ${{ github.event.issue.number }}
-              PROGRESS_FILE: ${{ runner.temp }}/progress.json
-              RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-            run: |
-              id=$(quartermaster/src/progress.ts start \
-                     "Preparing the sandbox" \
-                     "Working" \
-                     "Replying" \
-                     "Waiting ${FOLLOWUP_WINDOW}s for further instructions")
-              echo "id=$id" >> "$GITHUB_OUTPUT"
-
-          - name: Fetch the branch
-            if: steps.seen.outputs.ours == 'true'
-            env:
-              GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-              HEAD_REF: ${{ steps.pr.outputs.head_ref }}
-            run: |
-              # Only the sandbox ever reads a work tree, and it clones one for
-              # itself, so nothing here writes the files out.
-              auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
-              git init -q --bare "$RUNNER_TEMP/relay.git"
-              git --git-dir="$RUNNER_TEMP/relay.git" \
-                -c http.extraheader="AUTHORIZATION: basic $auth" \
-                fetch -q --depth 1 "${{ github.server_url }}/${{ github.repository }}.git" \
-                "+${{ steps.pr.outputs.ref }}:refs/heads/$HEAD_REF"
+      - name: Wait for the image and the branch
+        wait: [pull, fetch]
       - name: Stand up the host services
         if: steps.seen.outputs.ours == 'true'
         env:
