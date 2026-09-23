@@ -1,9 +1,9 @@
-import { test, before, after, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { createServer, type Server } from "node:http";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { createServer, type Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { after, before, beforeEach, test } from "node:test";
 
 let api: Server;
 let temp: string;
@@ -20,7 +20,9 @@ before(async () => {
       if ([...reject].some((r) => req.url!.includes(r))) {
         res.writeHead(422).end('{"message":"line must be part of the diff"}');
       } else {
-        res.writeHead(201, { "content-type": "application/json" }).end('{"id":1}');
+        res
+          .writeHead(201, { "content-type": "application/json" })
+          .end('{"id":1}');
       }
     });
   });
@@ -42,13 +44,19 @@ after(() => {
 beforeEach(() => {
   sent = [];
   reject = new Set();
-  writeFileSync(join(temp, "finish.json"), JSON.stringify({ reply: "the answer" }));
+  writeFileSync(
+    join(temp, "finish.json"),
+    JSON.stringify({ reply: "the answer" })
+  );
   writeFileSync(join(temp, "relay.pushed"), "abc123\n");
   process.env.IS_PULL_REQUEST = "yes";
 });
 
 test("a refused review still delivers the answer", async () => {
-  writeFileSync(join(temp, "findings.jsonl"), '{"path":"a.rb","line":9000,"body":"a point"}\n');
+  writeFileSync(
+    join(temp, "findings.jsonl"),
+    '{"path":"a.rb","line":9000,"body":"a point"}\n'
+  );
   reject.add("/reviews");
 
   await publish();
@@ -63,7 +71,10 @@ test("a refused review still delivers the answer", async () => {
 
 test("line comments on an issue go in the reply, not to the reviews endpoint", async () => {
   process.env.IS_PULL_REQUEST = "no";
-  writeFileSync(join(temp, "findings.jsonl"), '{"path":"a.rb","line":1,"body":"a point"}\n');
+  writeFileSync(
+    join(temp, "findings.jsonl"),
+    '{"path":"a.rb","line":1,"body":"a point"}\n'
+  );
 
   await publish();
 
@@ -71,11 +82,18 @@ test("line comments on an issue go in the reply, not to the reviews endpoint", a
   assert.match(sent[0]!.path, /\/issues\/7\/comments$/);
   const body = JSON.parse(sent[0]!.body).body;
   assert.match(body, /the answer/);
-  assert.match(body, /a\.rb/, "the point is kept, not dropped for want of a diff");
+  assert.match(
+    body,
+    /a\.rb/,
+    "the point is kept, not dropped for want of a diff"
+  );
 });
 
 test("a findings line of null is skipped, not thrown over", async () => {
-  writeFileSync(join(temp, "findings.jsonl"), 'null\n{"path":"a.rb","line":1,"body":"a point"}\n');
+  writeFileSync(
+    join(temp, "findings.jsonl"),
+    'null\n{"path":"a.rb","line":1,"body":"a point"}\n'
+  );
 
   await publish();
 

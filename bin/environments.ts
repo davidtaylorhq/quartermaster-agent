@@ -2,14 +2,25 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { load } from "../vendor/js-yaml.mjs";
 
-const KNOWN = ["name", "description", "image", "entrypoint", "cmd", "user", "mount", "setup"] as const;
+const KNOWN = [
+  "name",
+  "description",
+  "image",
+  "entrypoint",
+  "cmd",
+  "user",
+  "mount",
+  "setup",
+] as const;
 type Field = (typeof KNOWN)[number];
 
 // docker takes one executable but a list of arguments, so `cmd` is a list. A
 // string is split on spaces, which is what someone writing `sleep infinity`
 // means by it.
 function words(value: unknown): string[] {
-  if (Array.isArray(value)) return value.map(String);
+  if (Array.isArray(value)) {
+    return value.map(String);
+  }
   const text = String(value ?? "").trim();
   return text ? text.split(/\s+/) : [];
 }
@@ -25,9 +36,13 @@ function main(source: string | undefined, dest: string) {
     return;
   }
 
-  const doc = load(readFileSync(source, "utf8")) as { environments?: unknown } | null;
+  const doc = load(readFileSync(source, "utf8")) as {
+    environments?: unknown;
+  } | null;
   const list = doc?.environments;
-  if (!Array.isArray(list)) fail("expected a list under `environments`");
+  if (!Array.isArray(list)) {
+    fail("expected a list under `environments`");
+  }
 
   const out: Record<string, Record<Field, unknown>> = {};
   list.forEach((entry, i) => {
@@ -37,21 +52,31 @@ function main(source: string | undefined, dest: string) {
     const env = entry as Record<string, unknown>;
 
     const name = String(env.name ?? "");
-    if (!name) fail(`entry ${i + 1} has no name`);
+    if (!name) {
+      fail(`entry ${i + 1} has no name`);
+    }
     if (!/^[A-Za-z0-9_-]+$/.test(name)) {
       fail(`"${name}" is not a name; use letters, digits, - and _`);
     }
-    if (name in out) fail(`two environments are called "${name}"`);
+    if (name in out) {
+      fail(`two environments are called "${name}"`);
+    }
 
     for (const field of ["image", "mount"] as const) {
-      if (!String(env[field] ?? "")) fail(`${name} has no ${field}`);
+      if (!String(env[field] ?? "")) {
+        fail(`${name} has no ${field}`);
+      }
     }
     for (const key of Object.keys(env)) {
-      if (!KNOWN.includes(key as Field)) fail(`${name} has an unknown setting "${key}"`);
+      if (!KNOWN.includes(key as Field)) {
+        fail(`${name} has an unknown setting "${key}"`);
+      }
     }
 
     out[name] = {
-      ...Object.fromEntries(KNOWN.map((field) => [field, String(env[field] ?? "")])),
+      ...Object.fromEntries(
+        KNOWN.map((field) => [field, String(env[field] ?? "")])
+      ),
       cmd: words(env.cmd),
     } as unknown as Record<Field, string>;
   });

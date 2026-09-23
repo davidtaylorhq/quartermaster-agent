@@ -1,9 +1,15 @@
-import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { after, before, test } from "node:test";
 
 const gate = join(import.meta.dirname, "host-gate");
 let home: string;
@@ -14,7 +20,12 @@ function ask(command: string, input = "") {
   return spawnSync("sh", [gate], {
     input,
     encoding: "utf8",
-    env: { ...process.env, HOME: home, SSH_ORIGINAL_COMMAND: command, PATH: `${stubs}:${process.env.PATH}` },
+    env: {
+      ...process.env,
+      HOME: home,
+      SSH_ORIGINAL_COMMAND: command,
+      PATH: `${stubs}:${process.env.PATH}`,
+    },
   });
 }
 
@@ -28,7 +39,16 @@ before(() => {
   execFileSync("git", ["init", "-q", "--bare", relay]);
   const work = join(home, "work");
   execFileSync("git", ["init", "-q", work]);
-  const env = { cwd: work, env: { ...process.env, GIT_AUTHOR_NAME: "t", GIT_AUTHOR_EMAIL: "t@e", GIT_COMMITTER_NAME: "t", GIT_COMMITTER_EMAIL: "t@e" } };
+  const env = {
+    cwd: work,
+    env: {
+      ...process.env,
+      GIT_AUTHOR_NAME: "t",
+      GIT_AUTHOR_EMAIL: "t@e",
+      GIT_COMMITTER_NAME: "t",
+      GIT_COMMITTER_EMAIL: "t@e",
+    },
+  };
   writeFileSync(join(work, "f"), "hello\n");
   execFileSync("git", ["add", "-A"], env);
   execFileSync("git", ["commit", "-qm", "first"], env);
@@ -37,12 +57,15 @@ before(() => {
   // Standing in for docker, so a test can see what the gate would have run.
   writeFileSync(join(stubs, "docker"), '#!/bin/sh\necho "docker $*"\n');
   chmodSync(join(stubs, "docker"), 0o755);
-  writeFileSync(join(home, ".quartermaster", "dev-boot"), "#!/bin/sh\nexit 0\n");
+  writeFileSync(
+    join(home, ".quartermaster", "dev-boot"),
+    "#!/bin/sh\nexit 0\n"
+  );
   chmodSync(join(home, ".quartermaster", "dev-boot"), 0o755);
 
   writeFileSync(
     join(home, ".quartermaster", "environments.json"),
-    JSON.stringify({ rails: { user: "discourse", mount: "/src" } }),
+    JSON.stringify({ rails: { user: "discourse", mount: "/src" } })
   );
   writeFileSync(
     join(home, ".quartermaster", "env"),
@@ -52,7 +75,7 @@ before(() => {
       `export MCP_IMAGE=ghcr.io/example/mcp:1`,
       `export ENVIRONMENTS=${join(home, ".quartermaster", "environments.json")}`,
       "",
-    ].join("\n"),
+    ].join("\n")
   );
 });
 
@@ -85,7 +108,10 @@ test("an environment nobody declared is refused, and the real ones named", () =>
 
 test("a declared environment runs as the user and at the mount it declared", () => {
   const out = ask("dev rails");
-  assert.match(out.stdout, /docker exec -i -u discourse -w \/src -e CI=1 quartermaster_dev_rails bash -l/);
+  assert.match(
+    out.stdout,
+    /docker exec -i -u discourse -w \/src -e CI=1 quartermaster_dev_rails bash -l/
+  );
 });
 
 test("the MCP server is given the token by name, never by value", () => {

@@ -6,7 +6,7 @@ on:
   pull_request:
 
 jobs:
-  test:
+  check:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -15,6 +15,28 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
       - run: npm ci
-      - run: npm run check
-      - run: npm test
+
+      - parallel:
+          - name: Types
+            if: ${{ !cancelled() }}
+            run: npm run check
+
+          - name: Tests
+            if: ${{ !cancelled() }}
+            run: npm test
+
+          - name: ESLint
+            if: ${{ !cancelled() }}
+            run: npx eslint bin lib
+
+          - name: Prettier
+            if: ${{ !cancelled() }}
+            run: npx prettier --check bin lib eslint.config.mjs
+
+          - name: Shell
+            if: ${{ !cancelled() }}
+            run: |
+              for f in bin/host-setup bin/sandbox-up bin/dev-boot; do bash -n "$f"; done
+              sh -n bin/host-gate

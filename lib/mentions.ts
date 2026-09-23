@@ -8,10 +8,16 @@ export function waiting(): Mention[] {
 }
 
 export function render(mentions: Mention[]): string {
-  const out = mentions.length > 1
-    ? [`${mentions.length} comments are waiting. Where they disagree, the last one wins.`, ""]
-    : [];
+  const out =
+    mentions.length > 1
+      ? [
+          `${mentions.length} comments are waiting. Where they disagree, the last one wins.`,
+          "",
+        ]
+      : [];
 
-  for (const m of mentions) out.push(`@${m.author}:`, m.body.trim(), "");
+  for (const m of mentions) {
+    out.push(`@${m.author}:`, m.body.trim(), "");
+  }
   return out.join("\n");
 }

@@ -1,6 +1,6 @@
-import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { createServer, type Server } from "node:http";
+import { after, before, test } from "node:test";
 import { handler } from "./forward.ts";
 
 const REPO = "owner/project";
@@ -11,10 +11,20 @@ const NEGOTIATE = `/${REPO}.git/git-upload-pack`;
 
 let upstream: Server;
 let forward: Server;
-let asked: { url: string; authorization?: string; protocol?: string; body: string }[] = [];
-let answer: (url: string) => { status: number; headers: Record<string, string>; body: string };
+let asked: {
+  url: string;
+  authorization?: string;
+  protocol?: string;
+  body: string;
+}[] = [];
+let answer: (url: string) => {
+  status: number;
+  headers: Record<string, string>;
+  body: string;
+};
 
-const at = (server: Server) => `http://127.0.0.1:${(server.address() as { port: number }).port}`;
+const at = (server: Server) =>
+  `http://127.0.0.1:${(server.address() as { port: number }).port}`;
 
 before(async () => {
   upstream = createServer((req, res) => {
@@ -42,18 +52,27 @@ after(() => {
   forward?.close();
 });
 
-function replies(status = 200, headers: Record<string, string> = {}, body = "") {
+function replies(
+  status = 200,
+  headers: Record<string, string> = {},
+  body = ""
+) {
   asked = [];
   answer = () => ({ status, headers, body });
 }
 
 test("a push is refused at the first request git makes", async () => {
   replies();
-  const refs = await fetch(`${at(forward)}/${REPO}.git/info/refs?service=git-receive-pack`);
+  const refs = await fetch(
+    `${at(forward)}/${REPO}.git/info/refs?service=git-receive-pack`
+  );
   assert.equal(refs.status, 403);
   assert.equal(await refs.text(), "not permitted\n");
 
-  const pack = await fetch(`${at(forward)}/${REPO}.git/git-receive-pack`, { method: "POST", body: "anything" });
+  const pack = await fetch(`${at(forward)}/${REPO}.git/git-receive-pack`, {
+    method: "POST",
+    body: "anything",
+  });
   assert.equal(pack.status, 403);
 
   assert.deepEqual(asked, [], "nothing reached github");
@@ -73,26 +92,51 @@ test("another repository is refused", async () => {
 
 test("a path that merely starts right is refused", async () => {
   replies();
-  for (const url of [`${READ}&extra=1`, `${NEGOTIATE}/../git-receive-pack`, `/${REPO}.git/git-upload-pack?x=1`]) {
+  for (const url of [
+    `${READ}&extra=1`,
+    `${NEGOTIATE}/../git-receive-pack`,
+    `/${REPO}.git/git-upload-pack?x=1`,
+  ]) {
     assert.equal((await fetch(at(forward) + url)).status, 403, url);
   }
   assert.deepEqual(asked, []);
 });
 
 test("the advertisement is passed through with the credential added", async () => {
-  replies(200, { "content-type": "application/x-git-upload-pack-advertisement" }, "001e# service=git-upload-pack\n");
-  const response = await fetch(at(forward) + READ, { headers: { "git-protocol": "version=2" } });
+  replies(
+    200,
+    { "content-type": "application/x-git-upload-pack-advertisement" },
+    "001e# service=git-upload-pack\n"
+  );
+  const response = await fetch(at(forward) + READ, {
+    headers: { "git-protocol": "version=2" },
+  });
 
   assert.equal(response.status, 200);
-  assert.equal(response.headers.get("content-type"), "application/x-git-upload-pack-advertisement");
+  assert.equal(
+    response.headers.get("content-type"),
+    "application/x-git-upload-pack-advertisement"
+  );
   assert.equal(await response.text(), "001e# service=git-upload-pack\n");
   assert.equal(asked.length, 1);
-  assert.equal(asked[0]!.authorization, AUTH, "the sandbox never sends one, so the forwarder must");
-  assert.equal(asked[0]!.protocol, "version=2", "protocol v2 must survive the hop");
+  assert.equal(
+    asked[0]!.authorization,
+    AUTH,
+    "the sandbox never sends one, so the forwarder must"
+  );
+  assert.equal(
+    asked[0]!.protocol,
+    "version=2",
+    "protocol v2 must survive the hop"
+  );
 });
 
 test("the negotiation body reaches github and the pack comes back", async () => {
-  replies(200, { "content-type": "application/x-git-upload-pack-result" }, "PACK-bytes");
+  replies(
+    200,
+    { "content-type": "application/x-git-upload-pack-result" },
+    "PACK-bytes"
+  );
   const response = await fetch(at(forward) + NEGOTIATE, {
     method: "POST",
     headers: { "content-type": "application/x-git-upload-pack-request" },
@@ -100,7 +144,10 @@ test("the negotiation body reaches github and the pack comes back", async () => 
   });
 
   assert.equal(await response.text(), "PACK-bytes");
-  assert.equal(asked[0]!.body, "0032want 1111111111111111111111111111111111111111\n0000");
+  assert.equal(
+    asked[0]!.body,
+    "0032want 1111111111111111111111111111111111111111\n0000"
+  );
   assert.equal(asked[0]!.authorization, AUTH);
 });
 
@@ -110,7 +157,11 @@ test("a redirect is never followed, because the credential would follow it", asy
 
   assert.equal(response.status, 502);
   assert.equal(await response.text(), "upstream redirected\n");
-  assert.equal(asked.length, 1, "one request went out, and its answer was dropped");
+  assert.equal(
+    asked.length,
+    1,
+    "one request went out, and its answer was dropped"
+  );
 });
 
 test("github being unreachable is reported, not hung on", async () => {
@@ -128,8 +179,12 @@ test("github being unreachable is reported, not hung on", async () => {
 test("a forwarder that saw a broken response still serves the next one", async () => {
   let breaking = true;
   const upstream2 = createServer((_req, res) => {
-    res.writeHead(200, { "content-type": "application/x-git-upload-pack-result" });
-    if (!breaking) return res.end("PACK-whole");
+    res.writeHead(200, {
+      "content-type": "application/x-git-upload-pack-result",
+    });
+    if (!breaking) {
+      return res.end("PACK-whole");
+    }
     res.write("PACK-par");
     setTimeout(() => res.socket?.destroy(), 20);
   });

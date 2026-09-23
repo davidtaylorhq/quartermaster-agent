@@ -4,11 +4,16 @@
   "type": "module",
   "scripts": {
     "check": "tsc --noEmit",
-    "test": "node --test --experimental-strip-types --no-warnings=ExperimentalWarning 'bin/*.test.ts' 'lib/*.test.ts'"
+    "test": "node --test --experimental-strip-types --no-warnings=ExperimentalWarning 'bin/*.test.ts' 'lib/*.test.ts'",
+    "lint": "eslint bin lib && prettier --check bin lib eslint.config.mjs",
+    "lint:fix": "eslint --fix bin lib && prettier --write bin lib eslint.config.mjs"
   },
   "devDependencies": {
+    "@discourse/lint-configs": "^3.7.0",
     "@types/node": "^22.10.0",
+    "eslint": "^10.6.0",
     "js-yaml": "^4.1.0",
+    "prettier": "^3.8.1",
     "typescript": "^5.7.0"
   }
 }

@@ -9,5 +9,5 @@ const repo = process.env.GITHUB_REPOSITORY!;
 const auth = `Basic ${Buffer.from(`x-access-token:${process.env.GH_TOKEN}`).toString("base64")}`;
 
 createServer(handler(repo, auth)).listen(port, address, () =>
-  console.error(`[forward] ${address}:${port} serves ${repo} read-only`),
+  console.error(`[forward] ${address}:${port} serves ${repo} read-only`)
 );

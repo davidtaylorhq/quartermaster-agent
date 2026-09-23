@@ -15,17 +15,25 @@ function main(dest: string) {
 
   const blob = process.env.PROVIDER_ENV ?? "";
   blob.split("\n").forEach((raw, i) => {
-    const line = raw.trim().replace(/^﻿/, "");
-    if (!line || line.startsWith("#")) return;
+    const line = raw.trim().replace(/^\uFEFF/, "");
+    if (!line || line.startsWith("#")) {
+      return;
+    }
 
     const at = line.indexOf("=");
-    if (at < 0) fail(`line ${i + 1}: expected NAME=value`);
+    if (at < 0) {
+      fail(`line ${i + 1}: expected NAME=value`);
+    }
 
     const name = line.slice(0, at).trim();
-    if (!NAME.test(name)) fail(`line ${i + 1}: "${name}" is not a variable name`);
+    if (!NAME.test(name)) {
+      fail(`line ${i + 1}: "${name}" is not a variable name`);
+    }
 
     const value = line.slice(at + 1).trim();
-    if (!value) fail(`line ${i + 1}: ${name} has no value`);
+    if (!value) {
+      fail(`line ${i + 1}: ${name} has no value`);
+    }
 
     // GitHub masks the secret whole, which does not mask each line of it.
     console.log(`::add-mask::${value}`);
@@ -39,7 +47,7 @@ function main(dest: string) {
 
   appendFileSync(
     process.env.GITHUB_ENV!,
-    `PROVIDER_ENV_FILE=${dest}\nPROVIDER_ENV_NAMES=${names.join(" ")}\n`,
+    `PROVIDER_ENV_FILE=${dest}\nPROVIDER_ENV_NAMES=${names.join(" ")}\n`
   );
 }
 

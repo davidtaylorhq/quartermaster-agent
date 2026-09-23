@@ -1,9 +1,9 @@
-import { test, before, after, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { createServer, type Server } from "node:http";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { createServer, type Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { after, before, beforeEach, test } from "node:test";
 
 const TRIGGER = 100;
 let api: Server;
@@ -20,10 +20,14 @@ before(async () => {
       const first = !reacted.includes(id);
       reacted.push(id);
       // GitHub adds the reaction once; after that it says it is already there.
-      res.writeHead(first ? 201 : 200, { "content-type": "application/json" }).end("{}");
+      res
+        .writeHead(first ? 201 : 200, { "content-type": "application/json" })
+        .end("{}");
       return;
     }
-    res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(comments));
+    res
+      .writeHead(200, { "content-type": "application/json" })
+      .end(JSON.stringify(comments));
   });
   await new Promise<void>((done) => api.listen(0, "127.0.0.1", done));
 
@@ -57,7 +61,12 @@ function comment(id: number) {
   };
 }
 
-const taken = () => (JSON.parse(readFileSync(join(temp, "mention.json"), "utf8")) as { id: number }[]).map((m) => m.id);
+const taken = () =>
+  (
+    JSON.parse(readFileSync(join(temp, "mention.json"), "utf8")) as {
+      id: number;
+    }[]
+  ).map((m) => m.id);
 
 beforeEach(() => {
   // The workflow's first step reacted to the triggering comment already.
@@ -67,8 +76,16 @@ beforeEach(() => {
 
 test("the opening turn answers the comment the workflow already reacted to", async () => {
   assert.equal(await claim(false), true);
-  assert.deepEqual(taken(), [TRIGGER], "the run's own reaction is not mistaken for someone else's");
-  assert.deepEqual(reacted, [TRIGGER], "and it does not ask GitHub about it again");
+  assert.deepEqual(
+    taken(),
+    [TRIGGER],
+    "the run's own reaction is not mistaken for someone else's"
+  );
+  assert.deepEqual(
+    reacted,
+    [TRIGGER],
+    "and it does not ask GitHub about it again"
+  );
 });
 
 // The workflow's reaction is good for one claim. A follow-up that kept
@@ -77,7 +94,10 @@ test("a follow-up does not answer the opening comment again", async () => {
   await claim(false);
   assert.equal(await claim(true), false, "nothing new to say");
   assert.equal(await claim(true), false);
-  assert.ok(reacted.length > 1, "it asked GitHub, and GitHub said it was taken");
+  assert.ok(
+    reacted.length > 1,
+    "it asked GitHub, and GitHub said it was taken"
+  );
 });
 
 test("a follow-up answers a genuinely new mention", async () => {

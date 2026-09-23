@@ -1,12 +1,16 @@
 // The agent has no memory between mentions, so what was said goes in the
 // prompt.
-import { listComments, TRUSTED, type Comment } from "./github.ts";
+import { type Comment, listComments, TRUSTED } from "./github.ts";
 
 const KEEP = 20;
 const WIDTH = 800;
 
 // The run's own bookkeeping, which is not part of the conversation.
-const NOISE = ["On it!", "The run failed.", "The run stopped before it could answer."];
+const NOISE = [
+  "On it!",
+  "The run failed.",
+  "The run stopped before it could answer.",
+];
 const FOOTERS = ['<div align="right"><sub>:robot:', "<sub>:robot:"];
 
 export function withoutFooter(body: string): string {
@@ -22,21 +26,28 @@ function useful(c: Comment): boolean {
 export async function thread(skip: Set<string>): Promise<string> {
   const all = await listComments(
     process.env.GITHUB_REPOSITORY!,
-    process.env.ISSUE_NUMBER!,
+    process.env.ISSUE_NUMBER!
   );
   let kept = all.filter((c) => useful(c) && !skip.has(String(c.id)));
-  if (kept.length === 0) return "";
+  if (kept.length === 0) {
+    return "";
+  }
 
   const out: string[] = [];
   const dropped = kept.length - KEEP;
   if (dropped > 0) {
-    out.push(`(${dropped} earlier comment(s) not shown; read them if you need them)`, "");
+    out.push(
+      `(${dropped} earlier comment(s) not shown; read them if you need them)`,
+      ""
+    );
     kept = kept.slice(-KEEP);
   }
 
   for (const c of kept) {
     let body = withoutFooter(c.body.trim());
-    if (body.length > WIDTH) body = body.slice(0, WIDTH) + " […]";
+    if (body.length > WIDTH) {
+      body = body.slice(0, WIDTH) + " […]";
+    }
 
     let who: string = c.user.login;
     if (who === (process.env.BOT_LOGIN ?? "github-actions[bot]")) {

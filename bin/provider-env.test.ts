@@ -1,9 +1,15 @@
-import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import {
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { test } from "node:test";
 
 const script = join(import.meta.dirname, "provider-env.ts");
 
@@ -19,6 +25,7 @@ function read(blob: string) {
   const result = {
     ...run,
     file: run.status === 0 ? readFileSync(dest, "utf8") : "",
+    // eslint-disable-next-line no-bitwise -- the permission bits are the point
     mode: run.status === 0 ? statSync(dest).mode & 0o777 : 0,
     exported: run.status === 0 ? readFileSync(ghEnv, "utf8") : "",
   };
@@ -39,8 +46,17 @@ test("every value is masked before anything can echo it", () => {
 
 test("the names are logged and the values are not", () => {
   const { stdout } = read("CLAUDE_CODE_OAUTH_TOKEN=sk-secret-value\n");
-  assert.match(stdout, /credentials held on the runner: CLAUDE_CODE_OAUTH_TOKEN/);
-  assert.doesNotMatch(stdout.split("\n").filter((l) => !l.startsWith("::")).join("\n"), /sk-secret-value/);
+  assert.match(
+    stdout,
+    /credentials held on the runner: CLAUDE_CODE_OAUTH_TOKEN/
+  );
+  assert.doesNotMatch(
+    stdout
+      .split("\n")
+      .filter((l) => !l.startsWith("::"))
+      .join("\n"),
+    /sk-secret-value/
+  );
 });
 
 test("the file is readable only by the runner", () => {

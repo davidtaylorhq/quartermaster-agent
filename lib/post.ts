@@ -21,22 +21,31 @@ type Finding = { path: string; line: number; side: "RIGHT"; body: string };
 
 function readFindings(path: string): Finding[] {
   const out: Finding[] = [];
-  readFileSync(path, "utf8").split("\n").forEach((raw, i) => {
-    const line = raw.trim();
-    if (!line) return;
-    let f: Record<string, unknown> | null;
-    try {
-      f = JSON.parse(line);
-    } catch {
-      console.error(`ignoring unreadable line comment on line ${i + 1}`);
-      return;
-    }
-    if (f !== null && typeof f.path === "string" && typeof f.line === "number" && typeof f.body === "string") {
-      out.push({ path: f.path, line: f.line, side: "RIGHT", body: f.body });
-    } else {
-      console.error(`ignoring incomplete line comment on line ${i + 1}`);
-    }
-  });
+  readFileSync(path, "utf8")
+    .split("\n")
+    .forEach((raw, i) => {
+      const line = raw.trim();
+      if (!line) {
+        return;
+      }
+      let f: Record<string, unknown> | null;
+      try {
+        f = JSON.parse(line);
+      } catch {
+        console.error(`ignoring unreadable line comment on line ${i + 1}`);
+        return;
+      }
+      if (
+        f !== null &&
+        typeof f.path === "string" &&
+        typeof f.line === "number" &&
+        typeof f.body === "string"
+      ) {
+        out.push({ path: f.path, line: f.line, side: "RIGHT", body: f.body });
+      } else {
+        console.error(`ignoring incomplete line comment on line ${i + 1}`);
+      }
+    });
   return out;
 }
 
@@ -46,7 +55,9 @@ export async function publish(): Promise<void> {
     console.error("the agent never finished; nothing to post");
     throw new Error("nothing to post");
   }
-  const reply = ((JSON.parse(readFileSync(finish, "utf8")).reply as string) ?? "").trim();
+  const reply = (
+    (JSON.parse(readFileSync(finish, "utf8")).reply as string) ?? ""
+  ).trim();
 
   const findingsFile = join(temp, "findings.jsonl");
   const comments = existsSync(findingsFile) ? readFindings(findingsFile) : [];
@@ -66,7 +77,9 @@ export async function publish(): Promise<void> {
     } catch (error) {
       // GitHub takes a review whole or not at all, and one line outside the
       // diff loses the reply with it.
-      console.error(`the review was refused, so the reply carries its points: ${error}`);
+      console.error(
+        `the review was refused, so the reply carries its points: ${error}`
+      );
     }
   }
 
@@ -74,13 +87,15 @@ export async function publish(): Promise<void> {
     console.error("the agent finished with nothing to say");
     return;
   }
-  await comment(repo, issue, [reply, ...comments.map(asText)].filter(Boolean).join("\n\n"));
+  await comment([reply, ...comments.map(asText)].filter(Boolean).join("\n\n"));
 }
 
 function asText(f: Finding): string {
   return `**\`${f.path}\`** line ${f.line}\n\n${f.body}`;
 }
 
-async function comment(repo: string, issue: string, body: string): Promise<void> {
-  await request("POST", `/repos/${repo}/issues/${issue}/comments`, { body: sign(body) });
+async function comment(body: string): Promise<void> {
+  await request("POST", `/repos/${repo}/issues/${issue}/comments`, {
+    body: sign(body),
+  });
 }

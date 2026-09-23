@@ -1,7 +1,7 @@
 // Take the mentions nobody has answered yet. Reacting is what claims one, so
 // two runs cannot answer the same comment.
 import { writeFileSync } from "node:fs";
-import { listComments, request, TRUSTED, type Comment } from "./github.ts";
+import { type Comment, listComments, request, TRUSTED } from "./github.ts";
 import { scratch } from "./scratch.ts";
 
 const CLAIM = "eyes";
@@ -21,13 +21,22 @@ const out = scratch("mention.json");
 // claim anything. Only the first claim may take that on trust: afterwards
 // GitHub's 200 is the truth, and a run that kept the exemption would answer
 // that comment once per follow-up.
-async function react(id: number, already: string | undefined): Promise<boolean> {
-  if (already !== undefined && String(id) === already) return true;
+async function react(
+  id: number,
+  already: string | undefined
+): Promise<boolean> {
+  if (already !== undefined && String(id) === already) {
+    return true;
+  }
 
   try {
-    const response = await request("POST", `/repos/${repo}/issues/comments/${id}/reactions`, {
-      content: CLAIM,
-    });
+    const response = await request(
+      "POST",
+      `/repos/${repo}/issues/comments/${id}/reactions`,
+      {
+        content: CLAIM,
+      }
+    );
     return response.status === 201;
   } catch (error) {
     console.error(`could not claim ${id}: ${error}`);
@@ -46,17 +55,29 @@ async function outstanding(cutoff: string): Promise<Comment[]> {
     .sort((a, b) => a.created_at.localeCompare(b.created_at));
 }
 
-async function take(cutoff: string, already: string | undefined): Promise<boolean> {
+async function take(
+  cutoff: string,
+  already: string | undefined
+): Promise<boolean> {
   const taken = [];
   for (const c of await outstanding(cutoff)) {
-    if (!(await react(c.id, already))) continue;
-    taken.push({ id: c.id, author: c.user.login, body: c.body, created_at: c.created_at });
+    if (!(await react(c.id, already))) {
+      continue;
+    }
+    taken.push({
+      id: c.id,
+      author: c.user.login,
+      body: c.body,
+      created_at: c.created_at,
+    });
   }
   writeFileSync(out, JSON.stringify(taken));
-  if (taken.length === 0) return false;
+  if (taken.length === 0) {
+    return false;
+  }
 
   console.error(
-    `answering ${taken.length} comment(s): ${taken.map((c) => c.id).join(", ")}`,
+    `answering ${taken.length} comment(s): ${taken.map((c) => c.id).join(", ")}`
   );
   return true;
 }
@@ -70,7 +91,9 @@ export async function claim(wait: boolean): Promise<boolean> {
   const deadline = Date.now() + (wait ? WINDOW * 1000 : 0);
 
   while (true) {
-    if (await take(cutoff, already)) return true;
+    if (await take(cutoff, already)) {
+      return true;
+    }
     already = undefined;
     if (Date.now() >= deadline) {
       console.error("nothing outstanding");
@@ -79,4 +102,3 @@ export async function claim(wait: boolean): Promise<boolean> {
     await new Promise((r) => setTimeout(r, 3000));
   }
 }
-

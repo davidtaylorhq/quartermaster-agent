@@ -2,7 +2,7 @@ const API = process.env.GITHUB_API_URL ?? "https://api.github.com";
 
 // Who may instruct the agent. Anyone else can comment, and is quoted as such.
 export const TRUSTED = new Set(
-  (process.env.TRUSTED_ASSOCIATIONS ?? "OWNER,MEMBER,COLLABORATOR").split(","),
+  (process.env.TRUSTED_ASSOCIATIONS ?? "OWNER,MEMBER,COLLABORATOR").split(",")
 );
 
 export type Comment = {
@@ -24,7 +24,7 @@ function headers(): Record<string, string> {
 export async function request(
   method: string,
   path: string,
-  body?: unknown,
+  body?: unknown
 ): Promise<Response> {
   const response = await fetch(`${API}${path}`, {
     method,
@@ -35,7 +35,7 @@ export async function request(
   });
   if (!response.ok) {
     throw new Error(
-      `GitHub said ${response.status} to ${method} ${path}: ${await response.text()}`,
+      `GitHub said ${response.status} to ${method} ${path}: ${await response.text()}`
     );
   }
   return response;
@@ -44,12 +44,15 @@ export async function request(
 // GitHub gives the next page's URL rather than a count.
 async function paginate<T>(path: string): Promise<T[]> {
   const out: T[] = [];
-  let url: string | undefined = `${API}${path}${path.includes("?") ? "&" : "?"}per_page=100`;
+  let url: string | undefined =
+    `${API}${path}${path.includes("?") ? "&" : "?"}per_page=100`;
 
   while (url) {
     const response: Response = await fetch(url, { headers: headers() });
     if (!response.ok) {
-      throw new Error(`GitHub said ${response.status} to GET ${url}: ${await response.text()}`);
+      throw new Error(
+        `GitHub said ${response.status} to GET ${url}: ${await response.text()}`
+      );
     }
     out.push(...((await response.json()) as T[]));
     url = next(response.headers.get("link"));
