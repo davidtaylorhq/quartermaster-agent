@@ -109,16 +109,23 @@ jobs:
         id: seen
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          COMMENT: ${{ github.event.comment.id }}
         run: |
           # Reacting is how a run claims a comment: GitHub answers 201 when it
           # added the reaction and 200 when it was already there. So this tells
           # whoever asked that their mention landed, and settles whether there
           # is anything here for this run to do.
-          status=$(gh api --method POST --include \
-            "/repos/${{ github.repository }}/issues/comments/${{ github.event.comment.id }}/reactions" \
-            -f content=eyes | head -1 | awk '{print $2}')
-          echo "reaction: HTTP $status"
-          [ "$status" = 201 ] && echo "ours=true" >> "$GITHUB_OUTPUT" || echo "another run has this one"
+          status=$(curl -sS -o /dev/null -w '%{http_code}' -X POST \
+            -H "authorization: Bearer $GH_TOKEN" \
+            -H "accept: application/vnd.github+json" \
+            -d '{"content":"eyes"}' \
+            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/issues/comments/$COMMENT/reactions")
+
+          case "$status" in
+            201) echo "ours=true" >> "$GITHUB_OUTPUT" ;;
+            200) echo "another run has this one" ;;
+            *)   echo "::error::GitHub said $status to the reaction"; exit 1 ;;
+          esac
 
       - name: Work out where this workflow came from
         id: self
