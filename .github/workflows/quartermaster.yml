@@ -114,6 +114,7 @@ jobs:
       TERM_LLM_CONFIG: ${{ inputs.term-llm-config && format('{0}/project/{1}', github.workspace, inputs.term-llm-config) || '' }}
       GITHUB_TOOLSETS: pull_requests,issues
       HAS_APP: ${{ secrets.app-id != '' }}
+      CLAIMED: ${{ github.event.comment.id }}
       GITHUB_REPOSITORY: ${{ github.repository }}
       ISSUE_NUMBER: ${{ github.event.issue.number }}
       IS_PULL_REQUEST: ${{ github.event.issue.pull_request && 'yes' || 'no' }}
@@ -205,21 +206,12 @@ jobs:
             agent
           path: quartermaster
           persist-credentials: false
-      - parallel:
-          - name: Reading pending requests
-            if: steps.seen.outputs.ours == 'true'
-            env:
-              CLAIMED: ${{ github.event.comment.id }}
-            # One run is queued per issue, so a comment displaced from that
-            # queue has nothing else looking for it.
-            run: quartermaster/src/next-mention.ts
-
-          - name: Resolve the pull request
-            if: steps.seen.outputs.ours == 'true'
-            id: pr
-            env:
-              DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-            run: quartermaster/src/resolve.ts
+      - name: Resolve the pull request
+        if: steps.seen.outputs.ours == 'true'
+        id: pr
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: quartermaster/src/resolve.ts
       - name: Clone the work tree
         if: steps.seen.outputs.ours == 'true'
         id: worktree

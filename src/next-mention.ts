@@ -73,6 +73,3 @@ export async function claim(wait: boolean): Promise<boolean> {
   }
 }
 
-if (import.meta.filename === process.argv[1]) {
-  await claim(process.argv.includes("--wait"));
-}

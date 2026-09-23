@@ -97,6 +97,9 @@ const where: Situation = {
 
 try {
   if (opening) {
+    // One run is queued per issue, so a comment displaced from that queue has
+    // nothing else looking for it. Take those too.
+    await claim(false);
     const asked = waiting();
     if (asked.length === 0) {
       console.error("nothing left to answer");
