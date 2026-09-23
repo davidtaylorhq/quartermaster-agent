@@ -159,7 +159,7 @@ fi
 
 docker exec -u root "$CONTAINER" chown -R agent:agent "$HOME_DIR/.config"
 
-progress() { "$(dirname "$0")/progress" "$@" || true; }
+progress() { "${PROGRESS_SCRIPT:?}" "$@" || true; }
 
 # Whatever the development environment does happens behind the gate, so its
 # output goes to the sandbox and never here. Follow its log while the agent

@@ -103,6 +103,7 @@ jobs:
       MAX_TURNS: ${{ inputs.max-turns }}
       AGENT_TIMEOUT: ${{ inputs.agent-timeout }}
       TERM_LLM_VERSION: ${{ inputs.term-llm-version }}
+      PROGRESS_SCRIPT: ${{ github.workspace }}/quartermaster/src/progress.ts
 
     steps:
       - name: Work out where this workflow came from
@@ -133,10 +134,14 @@ jobs:
           fetch-depth: 1
           sparse-checkout: |
             scripts
-            dist
+            src
             agent
           path: quartermaster
           persist-credentials: false
+
+      - name: Install what the scripts need
+        working-directory: quartermaster
+        run: npm ci --omit=dev --silent --no-audit --no-fund
 
       - name: Name the agent
         run: |
@@ -147,7 +152,7 @@ jobs:
       - name: Read the model credentials
         env:
           PROVIDER_ENV: ${{ secrets.provider-env }}
-        run: node quartermaster/dist/provider-env.js "$RUNNER_TEMP/provider.env"
+        run: quartermaster/src/provider-env.ts "$RUNNER_TEMP/provider.env"
 
       - name: Check out the project's configuration
         uses: actions/checkout@v7
@@ -170,7 +175,7 @@ jobs:
         run: |
           # A fault in this file stops the run now. Found later, the bot has
           # already told somebody it is working on their comment.
-          node quartermaster/dist/environments.js \
+          quartermaster/src/environments.ts \
             "project/$ENVIRONMENTS" "$RUNNER_TEMP/environments.json"
           echo "ENVIRONMENTS_JSON=$RUNNER_TEMP/environments.json" >> "$GITHUB_ENV"
 
@@ -202,7 +207,7 @@ jobs:
             -f body="Starting…" --jq .id)
           echo "id=$id" >> "$GITHUB_OUTPUT"
           COMMENT_ID="$id" PROGRESS_FILE="$RUNNER_TEMP/progress.json" \
-            quartermaster/scripts/progress start \
+            quartermaster/src/progress.ts start \
               "Preparing the sandbox" \
               "Working" \
               "Replying" \
@@ -335,7 +340,7 @@ jobs:
           } > "$RUNNER_TEMP/prompt.txt"
 
           quartermaster/scripts/run-agent
-          quartermaster/scripts/progress next
+          quartermaster/src/progress.ts next
 
       - name: Post what the run produced
         if: always() && steps.mine.outputs.mine == 'true'
@@ -348,7 +353,7 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           quartermaster/scripts/post-review
-          quartermaster/scripts/progress next
+          quartermaster/src/progress.ts next
 
       - name: Keep talking
         if: success() && steps.mine.outputs.mine == 'true'
@@ -366,7 +371,7 @@ jobs:
           # The sandbox is still up. Answering here costs the model's time and
           # nothing else, where a fresh mention costs a minute of setup first.
           while quartermaster/scripts/next-mention --wait; do
-            quartermaster/scripts/progress next \
+            quartermaster/src/progress.ts next \
               "Working" \
               "Replying" \
               "Waiting ${FOLLOWUP_WINDOW}s for further instructions"
@@ -383,11 +388,11 @@ jobs:
             } > "$RUNNER_TEMP/prompt.txt"
 
             quartermaster/scripts/next-turn
-            quartermaster/scripts/progress next
+            quartermaster/src/progress.ts next
             quartermaster/scripts/post-review
-            quartermaster/scripts/progress next
+            quartermaster/src/progress.ts next
           done
-          quartermaster/scripts/progress done
+          quartermaster/src/progress.ts done
 
       - name: Show what happened behind the gate
         if: failure() && steps.mine.outputs.mine == 'true'

@@ -1,3 +1,4 @@
+#!/usr/bin/env -S node --experimental-strip-types --no-warnings=ExperimentalWarning
 // Read what the project says about its development environments and write what
 // the rest of this reads: one JSON object, keyed by name.
 //

@@ -26,7 +26,7 @@ fi
 # happens behind the gate where the runner sees none of it.
 tail -n +1 -F "$RUNNER_TEMP/dev-up.log" 2>/dev/null &
 trap 'kill "$!" 2>/dev/null || true' EXIT
-progress() { "$(dirname "$0")/progress" "$@" || true; }
+progress() { "${PROGRESS_SCRIPT:?}" "$@" || true; }
 
 as_agent() {
   docker exec -i -u agent -w /src \

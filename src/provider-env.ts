@@ -1,3 +1,4 @@
+#!/usr/bin/env -S node --experimental-strip-types --no-warnings=ExperimentalWarning
 // Read the model credentials the caller passed and leave them on the runner.
 //
 // Values are masked before anything can echo them. Nothing here puts them

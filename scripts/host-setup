@@ -57,7 +57,7 @@ put GH_TOKEN "$GH_TOKEN"
 put GITHUB_TOOLSETS "${GITHUB_TOOLSETS:-pull_requests,issues}"
 put GITHUB_READ_ONLY 1
 put WORKTREE_VOLUME "$WORKTREE_VOLUME"
-put PROGRESS "$STATE/progress"
+put PROGRESS "$PROGRESS_SCRIPT"
 put ENVIRONMENTS "$STATE/environments.json"
 put ASSET_REPO "$ASSET_REPO"
 put ASSET_REF "$ASSET_REF"
@@ -111,7 +111,6 @@ chmod +x "$RELAY/hooks/update" "$RELAY/hooks/post-receive"
 install -m 0755 "$(dirname "$0")/host-gate"  "$STATE/gate"
 install -m 0755 "$(dirname "$0")/dev-boot"   "$STATE/dev-boot"
 install -m 0644 "$ENVIRONMENTS_JSON" "$STATE/environments.json"
-install -m 0755 "$(dirname "$0")/progress"   "$STATE/progress"
 
 # --------------------------------------------------------------- the ssh gate
 step "generating keys"
