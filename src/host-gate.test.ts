@@ -64,9 +64,15 @@ test("a verb nobody offered is refused", () => {
   assert.match(out.stderr, /testbot: not permitted/);
 });
 
+test("reading the repository is not something the gate does", () => {
+  // The sandbox fetches through the forwarder, so this verb has no business
+  // here and the relay must not serve it.
+  assert.equal(ask("git-upload-pack '/relay.git'").status, 1);
+});
+
 test("the client's own arguments are discarded", () => {
   // git sends a repository path; the gate supplies its own and ignores it.
-  const out = ask("git-upload-pack '/etc/passwd'");
+  const out = ask("git-receive-pack '/etc/passwd'");
   assert.match(out.stdout, /refs\/heads\/topic/);
 });
 

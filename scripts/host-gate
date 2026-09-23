@@ -1,5 +1,6 @@
 #!/bin/sh
-# The only things the sandbox can ask the runner to do.
+# The only things the sandbox can ask the runner to do. Reading the repository
+# is not one of them: that goes to the forwarder over HTTP.
 #
 # A forced command in authorized_keys: it matches the verb and supplies its own
 # arguments, discarding the client's.
@@ -31,9 +32,6 @@ case "$SSH_ORIGINAL_COMMAND" in
       exec docker exec -i -u "$user" -w "$mount" -e CI=1 "quartermaster_dev_$name" bash -l
     fi
     exec docker exec -i -w "$mount" -e CI=1 "quartermaster_dev_$name" bash -l
-    ;;
-  git-upload-pack*)
-    exec git-upload-pack "$RELAY"
     ;;
   git-receive-pack*)
     exec git-receive-pack "$RELAY"

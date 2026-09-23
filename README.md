@@ -164,7 +164,7 @@ With no such file the agent reads, writes and answers, and the gate refuses to r
 
 ## How it works
 
-The agent runs in a container with no credentials in it. Everything it needs is a service on the runner, reached through an SSH gate that accepts four verbs and nothing else.
+The agent runs in a container holding no GitHub credential. What it needs is a service on the runner: an SSH gate that accepts three verbs and nothing else, and a forwarder that serves reads of this repository. The model credential is the exception, and is in the container.
 
 - **Pushing.** The container's `origin` is a bare repository on the runner. A hook there refuses every ref but the pull request's own branch, and a second hook forwards what it accepts to GitHub using a token the container never sees. `GITHUB_TOKEN` permissions cannot be scoped to a ref, so this is the only way to say "this branch and no other".
 - **Reading GitHub.** A read-only GitHub MCP server, started on the runner, reached through the gate.
@@ -176,4 +176,4 @@ Who may instruct it is settled by GitHub's author association, so a comment from
 
 - **No egress filtering.** The container can reach the whole internet. A prompt injection in a pull request cannot steal a GitHub token, because there isn't one, but it can talk to anything.
 - **The model credential is inside the container.** The GitHub token is not, but the key that pays for inference is. Stripping it from the agent's shell commands is not the same as it not being there.
-- **A project cannot add its own instructions.** The agent reads the prompt this workflow ships and nothing from the repository it is working in.
+- **A project's own instructions are whatever `AGENTS.md` says.** There is no way to add to the agent's prompt beyond that file and the skills this workflow ships.
