@@ -27,5 +27,3 @@ jobs:
           tags: |
             ghcr.io/${{ github.repository }}/sandbox:${{ github.sha }}
             ghcr.io/${{ github.repository }}/sandbox:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
