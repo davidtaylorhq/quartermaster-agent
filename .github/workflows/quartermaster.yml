@@ -280,12 +280,6 @@ jobs:
       - name: Answer anything that follows
         if: steps.seen.outputs.ours == 'true'
         run: quartermaster/src/converse.ts followups
-      - name: Post what a failed run left behind
-        if: failure() && steps.seen.outputs.ours == 'true'
-        run: quartermaster/src/post-review.ts || true
-      - name: Show what happened behind the gate
-        if: failure() && steps.seen.outputs.ours == 'true'
-        run: cat "$RUNNER_TEMP/dev-up.log" 2>/dev/null || echo "the development environment was never asked for"
       - name: Note that a newer mention took over
         if: cancelled() && steps.seen.outputs.ours == 'true'
         run: |
