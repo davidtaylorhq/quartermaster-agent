@@ -38,7 +38,7 @@ Edit files, run commands, use git. You are in a throwaway container with the rep
 
 Write the commit message the way the repository writes them.
 
-`git push origin HEAD` then sends your commits to the pull request branch. Only that branch is accepted; a push anywhere else is refused. Push once you have run whatever covers the change and it passed. Do not push work you could not verify, unless the person asked you to; commit it, leave it unpushed, and say why.
+`git push origin HEAD` then sends your commits to the pull request branch. Only that branch is accepted; a push anywhere else is refused. Read what the push says: git reports success once the runner has your commits, and a line beginning with the bot's name tells you whether GitHub took them. If it says to push again, push again. Push once you have run whatever covers the change and it passed. Do not push work you could not verify, unless the person asked you to; commit it, leave it unpushed, and say why.
 
 `git fetch` reaches this repository and nothing else. Both ends go through the runner, which holds the credentials; there are none in here to find.
 

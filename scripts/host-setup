@@ -75,7 +75,7 @@ HOOK
 cat > "$RELAY/hooks/post-receive" <<'HOOK'
 #!/bin/bash
 . "$HOME/.quartermaster/env"
-while read -r _old new ref; do
+while read -r old new ref; do
   [ "$ref" = "refs/heads/$HEAD_REF" ] || continue
 
   if [ "${CAN_PUSH:-false}" != true ]; then
@@ -93,8 +93,12 @@ while read -r _old new ref; do
     printf '%s' "$new" > "$PUSHED"
     echo "${BOT_NAME}: pushed ${new:0:12} to $HEAD_REF on GitHub"
   else
-    echo "${BOT_NAME}: GitHub refused the push; the commit exists only in the sandbox"
+    # Put the relay back, or the next push of the same commit is a no-op
+    # against a ref that already moved, and nothing reaches GitHub at all.
+    git update-ref "$ref" "$old"
+    echo "${BOT_NAME}: GitHub refused the push; the commit is only in the sandbox"
     echo "${BOT_NAME}: the branch most likely moved since this run started"
+    echo "${BOT_NAME}: push again to try it again"
   fi
 done
 HOOK
