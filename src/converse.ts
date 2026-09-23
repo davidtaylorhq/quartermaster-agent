@@ -98,11 +98,16 @@ const where: Situation = {
 
 try {
   if (opening) {
-    // The sandbox is up. `turn` marks the rest.
-    progress("next");
     const asked = waiting();
-    const history = await thread(new Set(asked.map((m) => String(m.id))));
-    await turn(first(where, history, render(asked)), false);
+    if (asked.length === 0) {
+      console.error("nothing left to answer");
+      progress("done");
+    } else {
+      // The sandbox is up. `turn` marks the rest.
+      progress("next");
+      const history = await thread(new Set(asked.map((m) => String(m.id))));
+      await turn(first(where, history, render(asked)), false);
+    }
   } else {
     while (await claim(true)) {
       progress("next", "Working", "Replying", `Waiting ${process.env.FOLLOWUP_WINDOW}s for further instructions`);

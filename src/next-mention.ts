@@ -48,9 +48,9 @@ async function take(cutoff: string): Promise<boolean> {
     if (!(await react(c.id))) continue;
     taken.push({ id: c.id, author: c.user.login, body: c.body, created_at: c.created_at });
   }
+  writeFileSync(out, JSON.stringify(taken));
   if (taken.length === 0) return false;
 
-  writeFileSync(out, JSON.stringify(taken));
   console.error(
     `answering ${taken.length} comment(s): ${taken.map((c) => c.id).join(", ")}`,
   );
@@ -74,5 +74,5 @@ export async function claim(wait: boolean): Promise<boolean> {
 }
 
 if (import.meta.filename === process.argv[1]) {
-  process.exit((await claim(process.argv.includes("--wait"))) ? 0 : 1);
+  await claim(process.argv.includes("--wait"));
 }

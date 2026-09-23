@@ -4,12 +4,14 @@
 set -Eeuo pipefail
 
 : "${RUNNER_TEMP:?}" "${BRIDGE_IP:?}" "${SSH_PORT:?}"
-: "${CLIENT_KEY:?}" "${HEAD_REF:?}" "${AGENT_DIR:?}"
-: "${GATE_USER:?}" "${SKILLS_DIR:?}" "${SANDBOX_IMAGE:?}" "${WORKTREE:?}"
+: "${CLIENT_KEY:?}" "${AGENT_DIR:?}"
+: "${GATE_USER:?}" "${SANDBOX_IMAGE:?}" "${WORKTREE:?}"
 : "${FORWARD_PORT:?}" "${GITHUB_REPOSITORY:?}"
-: "${MCP_TEMPLATE:?}"
+
 
 CONTAINER=quartermaster_sandbox
+SKILLS_DIR="$AGENT_DIR/skills"
+MCP_TEMPLATE="$AGENT_DIR/mcp.json"
 HOME_DIR=/home/agent
 SSH_OPTS="-i $HOME_DIR/.ssh/gate -p $SSH_PORT -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
 
@@ -21,13 +23,8 @@ dump_host_log() {
 }
 trap dump_host_log ERR
 
-as_agent() {
-  docker exec -i -u agent -w /src \
-    -e HOME="$HOME_DIR" \
-    -e GIT_SSH_COMMAND="ssh $SSH_OPTS" \
-    -e HEAD_REF="$HEAD_REF" \
-    -e SHELL=/usr/local/bin/qm-shell \
-    "$CONTAINER" bash -lc 'export PATH="$HOME/.local/bin:$PATH"; '"$1"
+in_sandbox() {
+  docker exec -u agent -w /src -e HOME="$HOME_DIR" "$CONTAINER" "$@"
 }
 
 log "booting $SANDBOX_IMAGE"
@@ -75,13 +72,12 @@ fi
 # Where the sandbox reaches the world from: the forwarder holds the credential
 # it must not, and the gate's hooks decide what reaches the branch.
 log "pointing the work tree at the gate"
-as_agent "
-  set -e
-  git remote set-url origin http://host.docker.internal:$FORWARD_PORT/$GITHUB_REPOSITORY.git
-  git remote set-url --push origin ssh://$GATE_USER@host.docker.internal/relay.git
-  git config user.name  "$BOT_NAME"
-  git config user.email "$BOT_NAME@users.noreply.github.com"
-"
+in_sandbox git remote set-url origin \
+  "http://host.docker.internal:$FORWARD_PORT/$GITHUB_REPOSITORY.git"
+in_sandbox git remote set-url --push origin \
+  "ssh://$GATE_USER@host.docker.internal/relay.git"
+in_sandbox git config user.name "$BOT_NAME"
+in_sandbox git config user.email "$BOT_NAME@users.noreply.github.com"
 
 log "installing the agent"
 docker exec -u root "$CONTAINER" install -d -o agent -g agent \

@@ -110,8 +110,6 @@ jobs:
       FORWARD_SCRIPT: ${{ github.workspace }}/quartermaster/src/git-forward.ts
       PROVIDER: ${{ inputs.provider }}
       AGENT_DIR: ${{ github.workspace }}/quartermaster/agent
-      SKILLS_DIR: ${{ github.workspace }}/quartermaster/agent/skills
-      MCP_TEMPLATE: ${{ github.workspace }}/quartermaster/agent/mcp.json
       TERM_LLM_CONFIG: ${{ inputs.term-llm-config && format('{0}/project/{1}', github.workspace, inputs.term-llm-config) || '' }}
       GITHUB_TOOLSETS: pull_requests,issues
       HAS_APP: ${{ secrets.app-id != '' }}
@@ -210,14 +208,9 @@ jobs:
             if: steps.seen.outputs.ours == 'true'
             env:
               CLAIMED: ${{ github.event.comment.id }}
-            run: |
-              # One run is queued per issue, so a comment displaced from that
-              # queue has nothing else looking for it.
-              if quartermaster/src/next-mention.ts; then
-                echo "mine=true" >> "$GITHUB_OUTPUT"
-              else
-                echo "everything here has been answered"
-              fi
+            # One run is queued per issue, so a comment displaced from that
+            # queue has nothing else looking for it.
+            run: quartermaster/src/next-mention.ts
 
           - name: Resolve the pull request
             if: steps.seen.outputs.ours == 'true'
@@ -231,21 +224,28 @@ jobs:
         background: true
         env:
           HEAD_REF: ${{ steps.pr.outputs.head_ref }}
+          REF: ${{ steps.pr.outputs.ref }}
         run: |
-          # The runner has the credential, so it clones while the image pulls.
+          # The runner has the credential, so it fetches while the image pulls.
           # `-c` stays on this command; `--config` would land in .git/config.
+          #
+          # A pull request from a fork has no branch in this repository, so the
+          # work tree comes from the pull request's own ref, under the name the
+          # branch has where it lives.
           auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
-          git -c http.extraheader="AUTHORIZATION: basic $auth" \
-              -c checkout.workers=0 \
-            clone -q --depth 1 --branch "$HEAD_REF" \
-            "${{ github.server_url }}/${{ github.repository }}.git" "$RUNNER_TEMP/worktree"
+          tree="$RUNNER_TEMP/worktree"
+          git init -q "$tree"
+          git -C "$tree" remote add origin "${{ github.server_url }}/${{ github.repository }}.git"
+          git -C "$tree" -c http.extraheader="AUTHORIZATION: basic $auth" \
+            fetch -q --depth 1 origin "+$REF:refs/heads/$HEAD_REF"
+          git -C "$tree" -c checkout.workers=0 checkout -q "$HEAD_REF"
 
           # The relay leases against the commit the agent started from, and
           # copying is what makes them the same commit.
-          cp -a "$RUNNER_TEMP/worktree/.git" "$RUNNER_TEMP/relay.git"
+          cp -a "$tree/.git" "$RUNNER_TEMP/relay.git"
 
           # The sandbox runs as uid 1000; the runner is somebody else.
-          sudo chown -R 1000:1000 "$RUNNER_TEMP/worktree"
+          sudo chown -R 1000:1000 "$tree"
 
       - name: Check out the project's configuration
         if: steps.seen.outputs.ours == 'true'
@@ -316,7 +316,7 @@ jobs:
         run: |
           gh api --method PATCH \
             "/repos/$GITHUB_REPOSITORY/issues/comments/$COMMENT_ID" \
-            -f body="Superseded by a newer mention." >/dev/null
+            -f body="The run stopped before it could answer. [View the log]($RUN_URL)." >/dev/null
       - name: Report failure
         if: failure() && steps.seen.outputs.ours == 'true'
         run: |

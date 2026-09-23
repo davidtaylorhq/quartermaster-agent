@@ -13,8 +13,5 @@
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true
   },
-  "include": [
-    "src",
-    "build.mjs"
-  ]
+  "include": ["src"]
 }

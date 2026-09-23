@@ -25,10 +25,7 @@ output_tool:
       reply:
         type: string
         description: "Markdown posted as your reply. Always say something, even after leaving line comments."
-      changed_code:
-        type: boolean
-        description: "True if you committed and pushed a change."
-    required: [reply, changed_code]
+    required: [reply]
     additionalProperties: false
 
 on_complete: |
