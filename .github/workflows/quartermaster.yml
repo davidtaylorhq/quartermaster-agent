@@ -133,13 +133,6 @@ jobs:
           echo "ASSET_REF=$WORKFLOW_SHA" >> "$GITHUB_ENV"
 
 
-      - name: Pull the sandbox image
-        id: image
-        background: true
-        env:
-          SANDBOX_IMAGE: ghcr.io/${{ steps.self.outputs.repo }}/sandbox:${{ steps.self.outputs.sha }}
-        run: docker pull "$SANDBOX_IMAGE"
-
       - name: Check out the agent
         uses: actions/checkout@v7
         with:
@@ -236,20 +229,27 @@ jobs:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: quartermaster/src/resolve.ts
 
-      - name: Fetch the branch
-        if: steps.mine.outputs.mine == 'true'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          HEAD_REF: ${{ steps.pr.outputs.head_ref }}
-        run: |
-          # Only the sandbox ever reads a work tree, and it clones one for
-          # itself, so nothing here writes the files out.
-          auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
-          git init -q --bare "$RUNNER_TEMP/relay.git"
-          git --git-dir="$RUNNER_TEMP/relay.git" \
-            -c http.extraheader="AUTHORIZATION: basic $auth" \
-            fetch -q --depth 1 "${{ github.server_url }}/${{ github.repository }}.git" \
-            "+${{ steps.pr.outputs.ref }}:refs/heads/$HEAD_REF"
+      - parallel:
+          - name: Fetch the branch
+            if: steps.mine.outputs.mine == 'true'
+            env:
+              GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              HEAD_REF: ${{ steps.pr.outputs.head_ref }}
+            run: |
+              # Only the sandbox ever reads a work tree, and it clones one for
+              # itself, so nothing here writes the files out.
+              auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+              git init -q --bare "$RUNNER_TEMP/relay.git"
+              git --git-dir="$RUNNER_TEMP/relay.git" \
+                -c http.extraheader="AUTHORIZATION: basic $auth" \
+                fetch -q --depth 1 "${{ github.server_url }}/${{ github.repository }}.git" \
+                "+${{ steps.pr.outputs.ref }}:refs/heads/$HEAD_REF"
+
+          - name: Pull the sandbox image
+            if: steps.mine.outputs.mine == 'true'
+            env:
+              SANDBOX_IMAGE: ghcr.io/${{ steps.self.outputs.repo }}/sandbox:${{ steps.self.outputs.sha }}
+            run: docker pull "$SANDBOX_IMAGE"
 
       - name: Stand up the host services
         if: steps.mine.outputs.mine == 'true'
@@ -262,10 +262,6 @@ jobs:
           GITHUB_TOOLSETS: pull_requests,issues
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: quartermaster/scripts/host-setup
-
-      - name: Wait for the sandbox image
-        if: steps.mine.outputs.mine == 'true'
-        wait: image
 
       - name: Run the agent
         if: steps.mine.outputs.mine == 'true'
