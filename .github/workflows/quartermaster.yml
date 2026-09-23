@@ -140,6 +140,10 @@ jobs:
           echo "ASSET_REPO=$repo" >> "$GITHUB_ENV"
           echo "ASSET_REF=$WORKFLOW_SHA" >> "$GITHUB_ENV"
 
+          # Nothing between here and the sandbox needs it, and docker makes a
+          # second pull of the same image wait on this one rather than repeat it.
+          nohup docker pull "ghcr.io/$repo/sandbox:$WORKFLOW_SHA" >/dev/null 2>&1 &
+
       - name: Check out the agent
         uses: actions/checkout@v7
         with:
