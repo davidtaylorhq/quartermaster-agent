@@ -175,6 +175,8 @@ The agent runs in a container holding no GitHub credential. What it needs is a s
 
 Who may instruct it is settled by GitHub's author association, so a comment from a passer-by is context, never an instruction.
 
+Association is not permission. `MEMBER` means a member of the organisation and `COLLABORATOR` means someone invited to this repository, and neither says they can write to it. The agent pushes with its own token, so anyone listed here can reach the branch through it. Narrow `trusted-associations` to `OWNER` if that is not what you want.
+
 ## What this does not do yet
 
 - **The runner has to be a fresh one.** State goes in fixed places: one directory under `HOME`, fixed ports, fixed container names, and nothing is torn down at the end. A second run on the same self-hosted machine finds the first one's keys and containers.
