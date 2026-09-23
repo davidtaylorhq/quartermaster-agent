@@ -4,6 +4,7 @@
 // The reaction is what stops two runs answering the same comment.
 import { writeFileSync } from "node:fs";
 import { listComments, request, TRUSTED, type Comment } from "./github.ts";
+import { scratch } from "./scratch.ts";
 
 const CLAIM = "eyes";
 const MACRO = process.env.MENTION!;
@@ -14,7 +15,7 @@ const WINDOW = Number(process.env.FOLLOWUP_WINDOW ?? "60");
 
 const repo = process.env.GITHUB_REPOSITORY!;
 const issue = process.env.ISSUE_NUMBER!;
-const out = process.env.MENTION_FILE!;
+const out = scratch("mention.json");
 
 // Reacting is the claim, and GitHub answers 201 when it added the reaction
 // and 200 when this account had already added it. So asking is claiming, and

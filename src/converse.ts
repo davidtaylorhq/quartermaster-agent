@@ -1,5 +1,7 @@
 #!/usr/bin/env -S node --experimental-strip-types --no-warnings=ExperimentalWarning
-// Answer what is waiting, then hold the sandbox open for follow-ups.
+// Answer what is waiting (`first`), or hold the sandbox open for whatever
+// comes next (`followups`). Two invocations so the log says how long the
+// first reply took.
 import { spawn, spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
@@ -25,10 +27,12 @@ function progress(...args: string[]) {
   spawnSync(process.env.PROGRESS_SCRIPT!, args, { stdio: "inherit" });
 }
 
+const opening = process.argv[2] !== "followups";
+
 // The development environment runs behind the gate; this log is the only way
-// its output reaches the runner.
-writeFileSync(join(temp, "dev-up.log"), "");
-const devLog = spawn("tail", ["-n", "+1", "-F", join(temp, "dev-up.log")], {
+// its output reaches the runner. A later step picks it up where it left off.
+if (opening) writeFileSync(join(temp, "dev-up.log"), "");
+const devLog = spawn("tail", ["-n", opening ? "+1" : "0", "-F", join(temp, "dev-up.log")], {
   stdio: ["ignore", "inherit", "ignore"],
 });
 
@@ -94,15 +98,17 @@ const where: Situation = {
 };
 
 try {
-  const asked = waiting();
-  const history = await thread(new Set(asked.map((m) => String(m.id))));
-  await turn(first(where, history, render(asked)), false);
-
-  while (await claim(true)) {
-    progress("next", "Working", "Replying", `Waiting ${process.env.FOLLOWUP_WINDOW}s for further instructions`);
-    await turn(again(render(waiting())), true);
+  if (opening) {
+    const asked = waiting();
+    const history = await thread(new Set(asked.map((m) => String(m.id))));
+    await turn(first(where, history, render(asked)), false);
+  } else {
+    while (await claim(true)) {
+      progress("next", "Working", "Replying", `Waiting ${process.env.FOLLOWUP_WINDOW}s for further instructions`);
+      await turn(again(render(waiting())), true);
+    }
+    progress("done");
   }
-  progress("done");
 } finally {
   devLog.kill();
 }

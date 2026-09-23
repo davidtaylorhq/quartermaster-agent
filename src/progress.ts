@@ -5,6 +5,7 @@
 //     progress next [LABEL...]    finish this step, do these next, start the next
 //     progress done               finish this step; nothing follows
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { scratch } from "./scratch.ts";
 
 const OPENING = "On it!";
 const MARK = {
@@ -13,7 +14,7 @@ const MARK = {
   pending: ["mark-pending.svg", "not started"],
 } as const;
 
-const STATE = process.env.PROGRESS_FILE ?? "/tmp/progress.json";
+const STATE = process.env.PROGRESS_FILE ?? scratch("progress.json");
 
 function render(labels: string[], at: number): string {
   const assets =
