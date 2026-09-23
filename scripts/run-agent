@@ -4,7 +4,7 @@
 # The sandbox is deliberately small: git, ssh and term-llm. It holds no
 # credentials and mounts nothing from the runner. The work tree is a docker
 # volume, which the development environment mounts too if the agent ever needs
-# one, so a run that only answers a question never waits for Ruby.
+# one, so a run that only answers a question never waits for it.
 set -Eeuo pipefail
 
 : "${RUNNER_TEMP:?}" "${BRIDGE_IP:?}" "${SSH_PORT:?}"
@@ -56,27 +56,30 @@ docker cp "$CLIENT_KEY" "$CONTAINER:$HOME_DIR/.ssh/gate"
 docker exec -u root "$CONTAINER" chown agent:agent "$HOME_DIR/.ssh/gate"
 docker exec -u root "$CONTAINER" chmod 600 "$HOME_DIR/.ssh/gate"
 
-# Anything that needs Ruby, node or the database runs in the development
-# environment instead of failing here. The shebang on bin/rspec and friends is
-# `env ruby`, so shimming ruby catches those without the agent having to know.
-log "installing shims for the development environment"
-docker exec -u root "$CONTAINER" bash -c "
-  set -e
-  cat > /usr/local/bin/dev <<'WRAP'
+# Anything the sandbox has no runtime for runs in the development environment
+# instead of failing here. A shimmed name reaches it without the agent having
+# to know: shimming the interpreter a project's own scripts start with
+# catches every one of them at once.
+if [ -n "${DEV_SCRIPT:-}" ]; then
+  log "installing the development environment wrapper"
+  docker exec -u root "$CONTAINER" bash -c "
+    set -e
+    cat > /usr/local/bin/dev <<'WRAP'
 #!/bin/bash
-# Run a command in the Discourse development environment.
+# Run a command in this project's development environment.
 set -euo pipefail
 printf 'cd %q\n' \"\$PWD\" > /tmp/dev.\$\$
 printf '%q ' \"\$@\" >> /tmp/dev.\$\$
 printf '\n' >> /tmp/dev.\$\$
 exec ssh $SSH_OPTS $GATE_USER@host.docker.internal dev < /tmp/dev.\$\$
 WRAP
-  chmod 0755 /usr/local/bin/dev
-  for c in ruby bundle bundler pnpm node npx psql rake rails; do
-    printf '#!/bin/sh\nexec /usr/local/bin/dev %s \"\$@\"\n' \"\$c\" > /usr/local/bin/\$c
-    chmod 0755 /usr/local/bin/\$c
-  done
-"
+    chmod 0755 /usr/local/bin/dev
+    for c in ${DEV_SHIMS:-}; do
+      printf '#!/bin/sh\nexec /usr/local/bin/dev %s \"\$@\"\n' \"\$c\" > /usr/local/bin/\$c
+      chmod 0755 /usr/local/bin/\$c
+    done
+  "
+fi
 
 # Claude Code ships a native binary, so the sandbox needs no node runtime to
 # run it, and neither installer needs root.

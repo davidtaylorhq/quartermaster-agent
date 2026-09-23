@@ -15,6 +15,21 @@ on:
         description: "Login the agent's own comments are posted under."
         type: string
         default: "github-actions[bot]"
+      dev:
+        description: >-
+          Path in this repository to a script that brings up the project's
+          development environment. It is called as `<script> up` to start one,
+          and `<script> exec` to run a command in it, reading that command on
+          stdin. Left unset, the agent answers questions and edits files but
+          runs nothing.
+        type: string
+        default: ""
+      dev-shims:
+        description: >-
+          Commands the sandbox should pass to the development environment
+          rather than fail on, separated by spaces.
+        type: string
+        default: ""
       trusted-associations:
         description: "Who may instruct the agent, as GitHub author associations."
         type: string
@@ -117,6 +132,20 @@ jobs:
           name='${{ inputs.bot-name }}'
           [ -n "$name" ] || name="${MENTION#@}"
           echo "BOT_NAME=$name" >> "$GITHUB_ENV"
+
+      - name: Check out the project's development environment
+        if: inputs.dev != ''
+        uses: actions/checkout@v7
+        with:
+          # The default branch, never the pull request head. This script runs
+          # on the runner with the job token in scope, so a pull request must
+          # not be able to choose what it says.
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 1
+          sparse-checkout: ${{ inputs.dev }}
+          sparse-checkout-cone-mode: false
+          path: project
+          persist-credentials: false
 
       - name: Take the oldest mention nobody has
         id: mine
@@ -221,6 +250,7 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           GITHUB_TOOLSETS: pull_requests,issues
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DEV_SCRIPT: ${{ inputs.dev && format('{0}/project/{1}', github.workspace, inputs.dev) || '' }}
         run: |
           # Everything the sandbox can reach is stood up here, and every
           # credential stays on this side of it.
@@ -248,6 +278,8 @@ jobs:
           COMMENT_ID: ${{ steps.ack.outputs.id }}
           PROGRESS_FILE: ${{ runner.temp }}/progress.json
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          DEV_SCRIPT: ${{ inputs.dev && format('{0}/project/{1}', github.workspace, inputs.dev) || '' }}
+          DEV_SHIMS: ${{ inputs.dev-shims }}
         run: |
           SKIP_COMMENT_IDS=$(IDS_ONLY=1 quartermaster/scripts/mentions)
           export SKIP_COMMENT_IDS

@@ -19,5 +19,7 @@ jobs:
       issues: write
     with:
       mention: '@discoursebot'
+      dev: .github/quartermaster/dev
+      dev-shims: ruby bundle bundler pnpm node npx psql rake rails
     secrets:
       anthropic-oauth-token: ${{ secrets.ANTHROPIC_OAUTH_TOKEN }}

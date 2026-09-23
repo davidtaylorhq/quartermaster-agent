@@ -14,11 +14,9 @@ PUSHED="$RUNNER_TEMP/relay.pushed"
 SSH_PORT=2222
 MCP_IMAGE=ghcr.io/github/github-mcp-server:v1.12.2
 WORKTREE_VOLUME=quartermaster-worktree
-POSTGRES_VOLUME=quartermaster-postgres
 
 step "preparing $STATE"
 docker volume create "$WORKTREE_VOLUME" >/dev/null
-docker volume create "$POSTGRES_VOLUME" >/dev/null
 
 # The gate starts this image the first time the agent reads anything from
 # GitHub, and waited on the pull when it did. Fetch it now instead, while the
@@ -56,8 +54,8 @@ put GH_TOKEN "$GH_TOKEN"
 put GITHUB_TOOLSETS "${GITHUB_TOOLSETS:-pull_requests,issues}"
 put GITHUB_READ_ONLY 1
 put WORKTREE_VOLUME "$WORKTREE_VOLUME"
-put POSTGRES_VOLUME "$POSTGRES_VOLUME"
 put PROGRESS "$STATE/progress"
+put DEV "${DEV_SCRIPT:+$STATE/dev}"
 put ASSET_REPO "$ASSET_REPO"
 put ASSET_REF "$ASSET_REF"
 put PROGRESS_FILE "$RUNNER_TEMP/progress.json"
@@ -108,7 +106,10 @@ HOOK
 chmod +x "$RELAY/hooks/update" "$RELAY/hooks/post-receive"
 
 install -m 0755 "$(dirname "$0")/host-gate"  "$STATE/gate"
-install -m 0755 "$(dirname "$0")/dev-up"     "$STATE/dev-up"
+install -m 0755 "$(dirname "$0")/dev-boot"   "$STATE/dev-boot"
+if [ -n "${DEV_SCRIPT:-}" ]; then
+  install -m 0755 "$DEV_SCRIPT" "$STATE/dev"
+fi
 install -m 0755 "$(dirname "$0")/progress"   "$STATE/progress"
 
 # --------------------------------------------------------------- the ssh gate

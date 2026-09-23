@@ -19,8 +19,12 @@ case "$SSH_ORIGINAL_COMMAND" in
     # command on stdin to a shell inside it. Nothing is parsed here either.
     # Keep it off this connection's stdin: that is the command the agent sent,
     # and the container it starts things in would read it as input.
-    "$HOME/.quartermaster/dev-up" </dev/null || exit 1
-    exec docker exec -i -u discourse -w /src -e CI=1 discourse_dev bash -l
+    if [ -z "${DEV:-}" ]; then
+      echo "$BOT_NAME: this project has no development environment" >&2
+      exit 1
+    fi
+    "$HOME/.quartermaster/dev-boot" </dev/null || exit 1
+    exec "$DEV" exec
     ;;
   git-upload-pack*)
     exec git-upload-pack "$RELAY"

@@ -38,6 +38,8 @@ jobs:
 | `mention` | *required* | What people type, including the `@` |
 | `bot-name` | the mention without its `@` | Name on the agent's commits |
 | `bot-login` | `github-actions[bot]` | Login the agent's comments appear under |
+| `dev` | unset | Path to your development environment script |
+| `dev-shims` | unset | Commands the sandbox passes to it rather than failing on |
 | `trusted-associations` | `OWNER,MEMBER,COLLABORATOR` | Who may instruct the agent |
 | `followup-window` | `60` | Seconds the sandbox is held open for a follow-up |
 | `max-comment-age-hours` | `1` | Older mentions are left alone |
@@ -46,6 +48,31 @@ jobs:
 | `term-llm-version` | pinned | |
 | `runs-on` | `ubuntu-latest` | |
 | `timeout-minutes` | `45` | |
+
+## Running tests and linters
+
+The sandbox holds git and little else, so anything needing a language runtime or a database happens in a development environment your project supplies. Point `dev` at a script in your repository that answers two verbs:
+
+```
+dev up      start it, or return at once if it is already up
+dev exec    exec a shell in it, reading the command on stdin
+```
+
+`up` may be called more than once and must be cheap when there is nothing to do. Its output goes to a log the runner follows, so write progress to stdout. `exec` must hand over to a shell, because the agent's command arrives on standard input.
+
+`WORKTREE_VOLUME` names a docker volume holding the checkout, already containing the agent's edits. Mount it wherever your environment expects the source.
+
+Name the commands you want redirected in `dev-shims`. A shimmed name reaches the development environment instead of failing in the sandbox, so shimming an interpreter catches every script that starts with it:
+
+```yaml
+with:
+  dev: .github/quartermaster/dev
+  dev-shims: ruby bundle pnpm node npx psql rake rails
+```
+
+**The script is read from your default branch, never from the pull request.** It runs on the runner with the job token in scope, so a pull request must not be able to choose what it says.
+
+With no `dev` set, the agent reads, writes and answers, and the gate refuses to run anything.
 
 ## How it works
 
@@ -61,5 +88,5 @@ Who may instruct it is settled by GitHub's author association, so a comment from
 
 - **No egress filtering.** The container can reach the whole internet. A prompt injection in a pull request cannot steal a GitHub token, because there isn't one, but it can talk to anything.
 - **The model credential is inside the container.** The GitHub token is not, but the key that pays for inference is.
-- **The development environment is still Discourse's.** `scripts/dev-up` boots a Discourse container. Making that a hook any project can supply is the next change.
+- **The agent prompt still names Discourse.** Letting a project add its own instructions is the next change.
 - **One provider.** Claude, through `claude-bin`.

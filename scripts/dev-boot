@@ -1,0 +1,46 @@
+#!/bin/bash
+# Bring the project's development environment up, once, on demand.
+set -euo pipefail
+
+. "$HOME/.quartermaster/env"
+
+LOG="${RUNNER_TEMP:-/tmp}/dev-up.log"
+READY="${RUNNER_TEMP:-/tmp}/dev-up.ready"
+
+# Everything here runs behind the gate, so anything written to the agent's
+# connection lands in the middle of whatever it asked for: the first command
+# after a boot came back with pages of install output wrapped around its own,
+# and the agent ran it again to see it cleanly. All of it goes to the
+# log the runner follows instead.
+note() { echo "[dev] $*" >> "$LOG"; }
+progress() {
+  if ! "$PROGRESS" "$@" >>"$LOG" 2>&1; then
+    echo "[dev] progress $* failed" >> "$LOG"
+  fi
+}
+
+exec 9>"${RUNNER_TEMP:-/tmp}/dev-up.lock"
+flock 9
+
+first=true
+[ -e "$READY" ] && first=false
+
+if [ "$first" = true ]; then
+  # The agent got as far as needing this, so that stretch of work is finished.
+  # What follows is the wait, and then the rest of the work under its own name.
+  progress next \
+    "Preparing development environment" \
+    "Working in development environment"
+fi
+
+note "bringing the development environment up"
+if ! "$DEV" up >>"$LOG" 2>&1; then
+  note "the development environment failed to start"
+  exit 1
+fi
+touch "$READY"
+
+if [ "$first" = true ]; then
+  progress next
+fi
+note "ready"
