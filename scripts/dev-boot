@@ -71,7 +71,7 @@ fi
 if [ -n "$SETUP" ]; then
   note "setting up"
   if ! docker exec -i ${USER_NAME:+-u "$USER_NAME"} -w "$MOUNT" -e CI=1 \
-       "$CONTAINER" bash -lc "$SETUP" </dev/null >>"$LOG" 2>&1; then
+       "$CONTAINER" bash -e -o pipefail -lc "$SETUP" </dev/null >>"$LOG" 2>&1; then
     fatal "setup failed, and the log has why"
   fi
 fi

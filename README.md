@@ -151,7 +151,7 @@ There are no shortcuts into an environment, so the agent always knows a command 
 
 The container has to stay up, so an image whose default command exits needs a `cmd` that does not.
 
-`setup` runs once, as `user`, when the container is created, and may assume a clean slate. An environment that stops is not started again, so nothing ever runs it twice. The image needs `bash`.
+`setup` runs once, as `user`, when the container is created, and may assume a clean slate. An environment that stops is not started again, so nothing ever runs it twice. The image needs `bash`. It runs under `-e -o pipefail`, so the first command that fails ends it.
 
 Write the commands here rather than calling a script in your repository. This file comes from your default branch, but the checkout it runs against is the pull request's, and a branch opened before you added that script does not have it. Its commands should read the work tree — installing what the pull request's lockfile says, not your default branch's — but what those commands *are* should not depend on the branch being worked on. Anything too long for this belongs in the image.
 
