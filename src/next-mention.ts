@@ -17,8 +17,13 @@ const out = scratch("mention.json");
 
 // GitHub answers 201 when it added the reaction and 200 when this account had
 // already added it, so one request both claims and checks.
-async function react(id: number): Promise<boolean> {
-  if (String(id) === process.env.CLAIMED) return true;
+//
+// `already` is the comment this run reacted to before it had the scripts to
+// claim anything. Only the first claim may take that on trust: afterwards
+// GitHub's 200 is the truth, and a run that kept the exemption would answer
+// that comment once per follow-up.
+async function react(id: number, already: string | undefined): Promise<boolean> {
+  if (already !== undefined && String(id) === already) return true;
 
   try {
     const response = await request("POST", `/repos/${repo}/issues/comments/${id}/reactions`, {
@@ -42,10 +47,10 @@ async function outstanding(cutoff: string): Promise<Comment[]> {
     .sort((a, b) => a.created_at.localeCompare(b.created_at));
 }
 
-async function take(cutoff: string): Promise<boolean> {
+async function take(cutoff: string, already: string | undefined): Promise<boolean> {
   const taken = [];
   for (const c of await outstanding(cutoff)) {
-    if (!(await react(c.id))) continue;
+    if (!(await react(c.id, already))) continue;
     taken.push({ id: c.id, author: c.user.login, body: c.body, created_at: c.created_at });
   }
   writeFileSync(out, JSON.stringify(taken));
@@ -58,13 +63,16 @@ async function take(cutoff: string): Promise<boolean> {
 }
 
 export async function claim(wait: boolean): Promise<boolean> {
+  // A follow-up is looking for what came after, so it never inherits this.
+  let already = wait ? undefined : process.env.CLAIMED;
   const cutoff = new Date(Date.now() - MAX_AGE_HOURS * 3600_000)
     .toISOString()
     .replace(/\.\d+Z$/, "Z");
   const deadline = Date.now() + (wait ? WINDOW * 1000 : 0);
 
   while (true) {
-    if (await take(cutoff)) return true;
+    if (await take(cutoff, already)) return true;
+    already = undefined;
     if (Date.now() >= deadline) {
       console.error("nothing outstanding");
       return false;
