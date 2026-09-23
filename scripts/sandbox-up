@@ -69,8 +69,8 @@ WRAP
   "
 fi
 
-# Where the sandbox reaches the world from: the forwarder holds the credential
-# it must not, and the gate's hooks decide what reaches the branch.
+# Reads go through the forwarder, which holds the credential the sandbox must
+# not. Pushes go through the gate, whose hooks decide what reaches the branch.
 log "pointing the work tree at the gate"
 in_sandbox git remote set-url origin \
   "http://host.docker.internal:$FORWARD_PORT/$GITHUB_REPOSITORY.git"

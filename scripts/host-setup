@@ -36,7 +36,7 @@ git --git-dir="$RELAY" symbolic-ref HEAD "refs/heads/$HEAD_REF"
 git --git-dir="$RELAY" rev-parse "refs/heads/$HEAD_REF" > "$PUSHED"
 
 # A branch name may hold a backtick, a dollar or a quote, and a shell on the
-# runner reads all of this.
+# runner reads all of this, so every value is quoted.
 step "writing the gate environment"
 : > "$STATE/env"
 chmod 600 "$STATE/env"

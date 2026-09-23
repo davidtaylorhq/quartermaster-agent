@@ -5,9 +5,8 @@ import { listComments, TRUSTED, type Comment } from "./github.ts";
 const KEEP = 20;
 const WIDTH = 800;
 
-// The checklist is bookkeeping, not conversation.
-const NOISE = ["Superseded by a newer mention.", "The run failed.", "Starting…", "On it!"];
-// Longest first: trimming a wrapped footer at its inner tag strands the outer.
+// The run's own bookkeeping, which is not part of the conversation.
+const NOISE = ["On it!", "The run failed.", "The run stopped before it could answer."];
 const FOOTERS = ['<div align="right"><sub>:robot:', "<sub>:robot:"];
 
 export function withoutFooter(body: string): string {

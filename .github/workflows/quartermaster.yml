@@ -27,13 +27,13 @@ on:
         description: >-
           Path in this repository to a term-llm configuration for the agent to
           use. Needed for a self-hosted or OpenAI-compatible endpoint, and for
-          anything else an environment variable cannot say.
+          anything an environment variable cannot express.
         type: string
         default: ""
       environments:
         description: >-
           Path in this repository to the development environments the agent may
-          run commands in. With no such file the agent reads, writes and
+          run commands in. Without this file the agent reads, writes and
           answers, but runs nothing.
         type: string
         default: .github/quartermaster/environments.yml
@@ -65,9 +65,9 @@ on:
       app-id:
         description: >-
           A GitHub App to act as, instead of Actions' own identity. Its
-          comments carry the app's name, and its pushes start the checks that
-          a push from `GITHUB_TOKEN` cannot. Needs issues, pull requests and
-          contents, all write.
+          comments carry the app's name, and its pushes start CI, which a push
+          from `GITHUB_TOKEN` does not. Needs write on issues, pull requests
+          and contents.
         required: false
       app-private-key:
         required: false
@@ -80,6 +80,7 @@ on:
 jobs:
   respond:
     # The same question `next-mention` asks, asked before anything boots.
+    # Keep the two in step.
     if: >-
       contains(github.event.comment.body, inputs.mention) &&
       contains(
@@ -89,9 +90,9 @@ jobs:
     runs-on: ${{ inputs.runs-on }}
     timeout-minutes: ${{ inputs.timeout-minutes }}
     concurrency:
-      # Queued rather than cancelled: cancelling would kill a run waiting for
-      # a follow-up with the run that follow-up started. Queueing also means
-      # the mark a finished run leaves is always there to be found.
+      # Queued rather than cancelled. Cancelling would kill a run waiting for
+      # a follow-up with the very run that follow-up started, and a queued run
+      # always finds the reaction the last one left.
       group: ${{ inputs.mention }}-${{ github.event.issue.number }}
       cancel-in-progress: false
     permissions:
@@ -133,8 +134,8 @@ jobs:
           FALLBACK_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           FALLBACK_LOGIN: ${{ inputs.bot-login }}
         run: |
-          # Before the claim: the reaction settles which run answers, and it
-          # only does that while one account is making it.
+          # Before the claim: every run has to react as the same account for
+          # the reaction to settle which of them answers.
           if [ -n "$APP_TOKEN" ]; then
             echo "GH_TOKEN=$APP_TOKEN" >> "$GITHUB_ENV"
             echo "BOT_LOGIN=$APP_SLUG[bot]" >> "$GITHUB_ENV"
@@ -240,8 +241,8 @@ jobs:
             fetch -q --depth 1 origin "+$REF:refs/heads/$HEAD_REF"
           git -C "$tree" -c checkout.workers=0 checkout -q "$HEAD_REF"
 
-          # The relay leases against the commit the agent started from, and
-          # copying is what makes them the same commit.
+          # The relay leases against the commit the agent started from.
+          # Copying is what makes them the same commit.
           cp -a "$tree/.git" "$RUNNER_TEMP/relay.git"
 
           # The sandbox runs as uid 1000; the runner is somebody else.
@@ -253,8 +254,8 @@ jobs:
         background: true
         uses: actions/checkout@v7
         with:
-          # The default branch, never the pull request head: what this says
-          # decides what runs on the runner.
+          # The default branch, never the pull request head. What this file
+          # says decides what runs on the runner.
           ref: ${{ github.event.repository.default_branch }}
           fetch-depth: 1
           sparse-checkout: |
@@ -294,7 +295,7 @@ jobs:
         env:
           ENVIRONMENTS: ${{ inputs.environments }}
         run: |
-          # Found later, the bot has already said it is working on the comment.
+          # Later than this, the bot has already said it is working on it.
           quartermaster/src/environments.ts \
             "project/$ENVIRONMENTS" "$RUNNER_TEMP/environments.json"
           echo "ENVIRONMENTS_JSON=$RUNNER_TEMP/environments.json" >> "$GITHUB_ENV"

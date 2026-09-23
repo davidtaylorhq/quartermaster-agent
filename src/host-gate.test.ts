@@ -1,4 +1,3 @@
-// What the sandbox may ask the runner for, driven the way sshd drives it.
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";

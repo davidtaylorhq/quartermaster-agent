@@ -1,13 +1,13 @@
 #!/usr/bin/env -S node --experimental-strip-types --no-warnings=ExperimentalWarning
 // Lets the sandbox clone without holding a credential.
 //
-// Both paths it allows belong to `upload-pack`, which only reads, so the path
-// is the whole policy. Writing goes to the ssh gate instead.
+// Both paths it allows belong to `upload-pack`, which only reads, so checking
+// the path is the whole policy. Pushes go to the ssh gate instead.
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 
-// Ours to set: a streamed body has a different length, and this is a new hop.
+// Set here: the body is streamed, so its length changes, and this is a new hop.
 const OURS = ["host", "connection", "content-length", "transfer-encoding", "authorization"];
 
 export function permitted(repo: string, method: string, url: string): boolean {

@@ -77,7 +77,7 @@ async function turn(prompt: string, resume: boolean) {
   const status = ask(prompt, resume);
   progress("next");
 
-  // A failed agent leaves nothing to publish; report the failure, not that.
+  // Report the agent's failure rather than the empty publish it causes.
   try {
     await publish();
   } catch (error) {

@@ -1,6 +1,6 @@
 #!/bin/bash
-# Start one of the project's development environments, once. The project
-# describes it; the flags that hold the sandbox shut stay here.
+# Start one of the project's development environments, once. The project says
+# what to run; the flags that keep the sandbox shut are set here.
 set -euo pipefail
 
 . "$HOME/.quartermaster/env"
@@ -9,10 +9,9 @@ NAME="$1"
 LOG="${RUNNER_TEMP:-/tmp}/dev-up.log"
 CONTAINER="quartermaster_dev_$NAME"
 
-# Behind the gate, so anything written here lands in the middle of whatever the
-# agent asked for.
+# This runs behind the gate, so anything printed here would land in the middle
+# of the output the agent asked for.
 note() { echo "[$NAME] $*" >> "$LOG"; }
-# Failures are the exception: the agent has to be told why.
 fatal() { note "$*"; echo "$BOT_NAME: $NAME: $*" >&2; exit 1; }
 progress() {
   if ! "$PROGRESS" "$@" >>"$LOG" 2>&1; then
@@ -26,7 +25,7 @@ exec 9>"${RUNNER_TEMP:-/tmp}/dev-$NAME.lock"
 flock 9
 
 # Made once and set up once: a second container over the first one's volumes
-# would run setup against a state it was promised it would not see.
+# would run setup against a state it was told it would not see.
 status=none
 if found=$(docker inspect -f '{{.State.Status}}' "$CONTAINER" 2>/dev/null); then
   status=$(printf '%s' "$found" | tr -d '[:space:]')

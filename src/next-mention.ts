@@ -7,7 +7,7 @@ import { scratch } from "./scratch.ts";
 
 const CLAIM = "eyes";
 const MACRO = process.env.MENTION!;
-// A backlog is better left alone than answered all at once.
+// Older than this is a backlog, and a backlog should not be answered at once.
 const MAX_AGE_HOURS = Number(process.env.MAX_COMMENT_AGE_HOURS ?? "1");
 const WINDOW = Number(process.env.FOLLOWUP_WINDOW ?? "60");
 
@@ -16,7 +16,7 @@ const issue = process.env.ISSUE_NUMBER!;
 const out = scratch("mention.json");
 
 // GitHub answers 201 when it added the reaction and 200 when this account had
-// already added it, so asking and claiming are one step.
+// already added it, so one request both claims and checks.
 async function react(id: number): Promise<boolean> {
   if (String(id) === process.env.CLAIMED) return true;
 
@@ -32,7 +32,7 @@ async function react(id: number): Promise<boolean> {
 }
 
 async function outstanding(cutoff: string): Promise<Comment[]> {
-  // Polling a long thread in full, every few seconds, to hear "nothing new".
+  // The cutoff keeps a poll every few seconds from reading the whole thread.
   const all = await listComments(repo, issue, cutoff);
   return all
     .filter((c) => c.created_at >= cutoff)

@@ -57,7 +57,7 @@ async function publish(next: Omit<State, "comment">): Promise<string | undefined
   if (!repo) return comment;
   const drawn = render(labels, at, took);
 
-  // A checklist that will not update is not worth losing the run over.
+  // A checklist that will not update should not end the run.
   let response: Response;
   try {
     response = comment
@@ -77,7 +77,7 @@ const [command, ...labels] = process.argv.slice(2);
 
 if (command === "start") {
   // The queue is over before this runs, so its length comes from the two
-  // timestamps rather than a clock.
+  // timestamps it was given.
   const started = Number(process.env.RUN_STARTED);
   const asked = Date.parse(process.env.ASKED ?? "");
   const timed = Number.isFinite(started) && Number.isFinite(asked) && started > asked;

@@ -1,5 +1,3 @@
-// What the agent is told.
-//
 // A follow-up says less because the rest is still in the session it resumes.
 export type Situation = {
   repo: string;

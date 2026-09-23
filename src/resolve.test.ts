@@ -5,7 +5,6 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-// An issue needs no GitHub call, so this much is testable without one.
 function resolve(env: NodeJS.ProcessEnv) {
   const dir = mkdtempSync(join(tmpdir(), "resolve-"));
   const out = join(dir, "out");

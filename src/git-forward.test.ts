@@ -1,4 +1,3 @@
-// The forwarder holds the credential, so what it refuses is what matters.
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { createServer, type Server } from "node:http";

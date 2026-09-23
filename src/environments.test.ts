@@ -1,5 +1,3 @@
-// This file decides what container runs on the runner, so a fault in it has to
-// stop the run rather than produce something almost right.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";

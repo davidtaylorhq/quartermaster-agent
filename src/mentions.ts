@@ -1,4 +1,3 @@
-// The comments this turn is answering.
 import { readFileSync } from "node:fs";
 import { scratch } from "./scratch.ts";
 

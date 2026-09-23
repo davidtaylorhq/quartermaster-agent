@@ -1,6 +1,4 @@
 #!/usr/bin/env -S node --experimental-strip-types --no-warnings=ExperimentalWarning
-// Turn the project's environments file into the JSON everything else reads. A
-// fault here stops the run before the bot has claimed anybody's comment.
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { load } from "../vendor/js-yaml.mjs";
 

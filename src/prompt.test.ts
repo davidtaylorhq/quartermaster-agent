@@ -1,4 +1,3 @@
-// What the agent is told decides what it does, so the rules are pinned here.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { again, first, type Situation } from "./prompt.ts";

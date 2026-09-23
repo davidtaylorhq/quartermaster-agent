@@ -35,8 +35,6 @@ test("start records every step with the first under way", () => {
   rmSync(dir, { recursive: true, force: true });
 });
 
-// A whole run's worth of steps. Getting this wrong leaves a spinner against a
-// step that finished.
 test("a turn ends on the step that says it is waiting", () => {
   const dir = mkdtempSync(join(tmpdir(), "progress-"));
   const state = join(dir, "progress.json");
@@ -53,7 +51,6 @@ test("a turn ends on the step that says it is waiting", () => {
   run(["next"], state);                      // the reply is posted
   assert.equal(labels()[at()], "Waiting 60s");
 
-  // A follow-up adds its own three and starts on the first of them.
   run(["next", "Working", "Replying", "Waiting 60s"], state);
   assert.equal(labels()[at()], "Working");
   assert.equal(labels().length, 7);
@@ -66,8 +63,6 @@ test("a turn ends on the step that says it is waiting", () => {
   rmSync(dir, { recursive: true, force: true });
 });
 
-// The queue is over before any of this runs, so its length comes from the two
-// timestamps rather than a clock.
 test("the first step is timed from the comment to the workflow starting", () => {
   const dir = mkdtempSync(join(tmpdir(), "progress-"));
   const state = join(dir, "progress.json");
