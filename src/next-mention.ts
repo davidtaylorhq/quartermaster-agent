@@ -3,7 +3,7 @@
 //
 // The reaction is what stops two runs answering the same comment.
 import { writeFileSync } from "node:fs";
-import { listComments, request, paginate, TRUSTED, type Comment } from "./github.ts";
+import { listComments, request, TRUSTED, type Comment } from "./github.ts";
 
 const CLAIM = "eyes";
 const MACRO = process.env.MENTION!;
@@ -16,25 +16,15 @@ const repo = process.env.GITHUB_REPOSITORY!;
 const issue = process.env.ISSUE_NUMBER!;
 const out = process.env.MENTION_FILE!;
 
-async function claimed(comment: Comment): Promise<boolean> {
-  // The workflow reacts to the comment that started the run before anything
-  // else, so that one is ours however it looks.
-  if (String(comment.id) === process.env.CLAIMED_ID) return false;
-
-  // The count arrives with the comment; only a non-zero one needs a lookup.
-  if (!comment.reactions?.eyes) return false;
-  const reactions = await paginate<{ content: string; user: { login: string } }>(
-    `/repos/${repo}/issues/comments/${comment.id}/reactions`,
-  );
-  return reactions.some((r) => r.content === CLAIM && r.user.login.endsWith("[bot]"));
-}
-
+// Reacting is the claim, and GitHub answers 201 when it added the reaction
+// and 200 when this account had already added it. So asking is claiming, and
+// there is no moment between the two for another run to fit into.
 async function react(id: number): Promise<boolean> {
   try {
-    await request("POST", `/repos/${repo}/issues/comments/${id}/reactions`, {
+    const response = await request("POST", `/repos/${repo}/issues/comments/${id}/reactions`, {
       content: CLAIM,
     });
-    return true;
+    return response.status === 201;
   } catch (error) {
     console.error(`could not claim ${id}: ${error}`);
     return false;
@@ -57,7 +47,6 @@ async function outstanding(cutoff: string): Promise<Comment[]> {
 async function take(cutoff: string): Promise<boolean> {
   const taken = [];
   for (const c of await outstanding(cutoff)) {
-    if (await claimed(c)) continue;
     if (!(await react(c.id))) continue;
     taken.push({ id: c.id, author: c.user.login, body: c.body, created_at: c.created_at });
   }

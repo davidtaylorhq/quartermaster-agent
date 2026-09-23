@@ -191,7 +191,6 @@ jobs:
               GITHUB_REPOSITORY: ${{ github.repository }}
               ISSUE_NUMBER: ${{ github.event.issue.number }}
               MENTION_FILE: ${{ runner.temp }}/mention.json
-              CLAIMED_ID: ${{ github.event.comment.id }}
             run: |
               # Not only the comment that started this run: one run is queued per
               # issue, so a comment displaced from that queue has nothing else

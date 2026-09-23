@@ -12,7 +12,6 @@ export type Comment = {
   created_at: string;
   author_association: string;
   user: { login: string };
-  reactions?: { eyes: number };
 };
 
 function headers(): Record<string, string> {
