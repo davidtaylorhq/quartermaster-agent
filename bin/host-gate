@@ -1,5 +1,6 @@
 #!/bin/sh
-# The only things the sandbox can ask the runner to do.
+# The only things the sandbox can ask the runner to do. Reading this repository
+# is not one of them: that goes to the forwarder over HTTP.
 #
 # A forced command in authorized_keys: it matches the verb and supplies its own
 # arguments, discarding the client's.
@@ -31,28 +32,6 @@ case "$SSH_ORIGINAL_COMMAND" in
       exec docker exec -i -u "$user" -w "$mount" -e CI=1 "quartermaster_dev_$name" bash -l
     fi
     exec docker exec -i -w "$mount" -e CI=1 "quartermaster_dev_$name" bash -l
-    ;;
-  "bring "*)
-    # The sandbox has no credential, so the runner fetches on its behalf. What
-    # it asks for is named, never a refspec: the relay's own branch is what the
-    # push leases against and nothing here may move it.
-    set -- ${SSH_ORIGINAL_COMMAND#bring }
-    depth=$1
-    ref=$2
-    case "$depth" in
-      ''|*[!0-9]*) echo "$BOT_NAME: a depth is a number" >&2; exit 1 ;;
-    esac
-    case "$ref" in
-      ''|*[!A-Za-z0-9._/-]*|*..*|/*)
-        echo "$BOT_NAME: '$ref' is not a branch, a tag or a commit" >&2; exit 1 ;;
-    esac
-    auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
-    exec git --git-dir="$RELAY" -c http.extraheader="AUTHORIZATION: basic $auth" \
-      fetch --no-tags --depth "$depth" "https://github.com/$GITHUB_REPOSITORY.git" \
-      "+$ref:refs/brought/$ref"
-    ;;
-  git-upload-pack*)
-    exec git-upload-pack "$RELAY"
     ;;
   git-receive-pack*)
     exec git-receive-pack "$RELAY"

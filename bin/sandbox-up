@@ -6,7 +6,7 @@ set -Eeuo pipefail
 : "${RUNNER_TEMP:?}" "${BRIDGE_IP:?}" "${SSH_PORT:?}"
 : "${CLIENT_KEY:?}" "${AGENT_DIR:?}"
 : "${GATE_USER:?}" "${SANDBOX_IMAGE:?}" "${WORKTREE:?}"
-: "${GITHUB_REPOSITORY:?}"
+: "${FORWARD_PORT:?}" "${GITHUB_REPOSITORY:?}"
 
 
 CONTAINER=quartermaster_sandbox
@@ -69,28 +69,13 @@ WRAP
   "
 fi
 
-# The gate is the whole of the sandbox's git. Its hooks decide what reaches the
-# branch, and the runner fetches on its behalf because it holds the credential.
+# Reads go through the forwarder, which holds the credential the sandbox must
+# not. Pushes go through the gate, whose hooks decide what reaches the branch.
 log "pointing the work tree at the gate"
 in_sandbox git remote set-url origin \
+  "http://host.docker.internal:$FORWARD_PORT/$GITHUB_REPOSITORY.git"
+in_sandbox git remote set-url --push origin \
   "ssh://$GATE_USER@host.docker.internal/relay.git"
-
-# Two steps every time, so the agent is given one.
-docker exec -u root "$CONTAINER" bash -c "cat > /usr/local/bin/bring && chmod 0755 /usr/local/bin/bring" <<WRAP
-#!/bin/bash
-# Bring a branch, tag or commit into this work tree from GitHub.
-set -euo pipefail
-if [ \$# -lt 1 ]; then
-  echo 'usage: bring <branch|tag|commit> [depth]' >&2
-  exit 2
-fi
-ref=\$1
-depth=\${2:-1}
-ssh $SSH_OPTS $GATE_USER@host.docker.internal "bring \$depth \$ref" >&2
-exec git fetch --depth "\$depth" origin "+refs/brought/\$ref:refs/remotes/origin/\$ref"
-WRAP
-in_sandbox git config user.name "$BOT_NAME"
-in_sandbox git config user.email "$BOT_NAME@users.noreply.github.com"
 
 log "installing the agent"
 docker exec -u root "$CONTAINER" install -d -o agent -g agent \

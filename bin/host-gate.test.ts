@@ -4,7 +4,6 @@ import {
   chmodSync,
   mkdirSync,
   mkdtempSync,
-  readFileSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
@@ -88,34 +87,10 @@ test("a verb nobody offered is refused", () => {
   assert.match(out.stderr, /testbot: not permitted/);
 });
 
-// The runner fetches for the sandbox, so what it is asked to fetch is the one
-// thing an agent chooses here. A refspec would let it write the relay's own
-// branch, which is what the push is checked against.
-test("a ref name that is not one is refused before git sees it", () => {
-  for (const bad of [
-    "../heads/main",
-    "main;id",
-    "refs/../../etc",
-    "-upload-pack=id",
-    "",
-  ]) {
-    assert.equal(
-      ask(`bring 1 ${bad}`).status,
-      1,
-      `allowed ${JSON.stringify(bad)}`
-    );
-  }
-  assert.equal(ask("bring deep main").status, 1, "a depth is a number");
-});
-
-test("what it brings cannot be the branch the push leases against", () => {
-  const source = readFileSync(gate, "utf8");
-  assert.match(
-    source,
-    /refs\/brought\//,
-    "what it fetches lands in its own namespace"
-  );
-  assert.doesNotMatch(source, /fetch[^\n]*refs\/heads\/\$ref/);
+// The sandbox fetches through the forwarder, so this verb has no business here
+// and the relay must not serve it.
+test("reading the repository is not something the gate does", () => {
+  assert.equal(ask("git-upload-pack '/relay.git'").status, 1);
 });
 
 test("the client's own arguments are discarded", () => {

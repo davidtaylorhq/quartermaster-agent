@@ -40,7 +40,7 @@ Write the commit message the way the repository writes them.
 
 `git push origin HEAD` then sends your commits to the pull request branch. Only that branch is accepted; a push anywhere else is refused. Read what the push says: git reports success once the runner has your commits, and a line beginning with the bot's name tells you whether GitHub took them. If it says to push again, push again. Push once you have run whatever covers the change and it passed. Do not push work you could not verify, unless the person asked you to; commit it, leave it unpushed, and say why.
 
-Reading and writing both go through the runner, which holds the credentials; there are none in here to find.
+`git fetch` reaches this repository and nothing else. Both ends go through the runner, which holds the credentials; there are none in here to find.
 
 The sandbox has git and little else. Anything needing a language runtime or a database goes to a development environment, which starts the first time you ask for it. This project's are listed below, if it has any.
 
@@ -56,10 +56,9 @@ On a pull request the commit it branched from is here too, so the change itself 
 
     git diff <base sha> HEAD
 
-Nothing else is here. `git log` shows the head commit and nothing before it, `git blame` says only that it exists, and a branch name like `main` does not resolve. `bring` gets the rest, a branch, tag or commit at a time:
+Nothing else is here. `git log` shows the head commit and nothing before it, `git blame` says only that it exists, and a branch name like `main` does not resolve. Fetch what you want first, and only what you want:
 
-    bring main            # its tip
-    bring main 50         # and the fifty commits before it
-    bring 1a2b3c4
+    git fetch --depth 1 origin main
+    git fetch --depth 50 origin main
 
-It lands as `origin/<what you asked for>`. The runner fetches it for you, because the credential is on that side, and it comes from this repository and no other. Each one costs a few seconds, so ask for what you need rather than the history around it. `pull_request_read` already has the diff, the files and the existing review comments.
+`origin` reaches this repository and nothing else, and the credential is on the runner's side of it. Each fetch costs a few seconds, so ask for the commits you need rather than the history around them. `pull_request_read` already has the diff, the files and the existing review comments.

@@ -172,16 +172,14 @@ The agent runs in a container holding no GitHub credential. Everything it can as
 | | said by |
 |---|---|
 | `dev <environment>` | the agent, to run a command somewhere with a runtime |
-| `bring <depth> <ref>` | the agent, to fetch a branch, tag or commit |
 | `mcp` | term-llm, to reach the GitHub MCP server |
-| `git-upload-pack` | git, when something fetches from the relay |
 | `git-receive-pack` | git, when the agent runs `git push` |
 
-The last two are not commands the agent writes. It runs `git push` and git speaks the protocol; the gate's hooks decide what reaches the branch. The model credential is the exception to all of this, and is in the container.
+The last is not a command the agent writes. It runs `git push` and git speaks the protocol; the gate's hooks decide what reaches the branch. Reads do not go through the gate at all: `origin` fetches from a forwarder on the runner that allows two paths, both of them `upload-pack`, and adds the credential the container has not got. The model credential is the exception to all of this, and is in the container.
 
-- **Pushing.** The container's `origin` is a bare repository on the runner. A hook there refuses every ref but the pull request's own branch, and a second hook forwards what it accepts to GitHub using a token the container never sees. `GITHUB_TOKEN` permissions cannot be scoped to a ref, so this is the only way to say "this branch and no other".
+- **Pushing.** The container pushes to a bare repository on the runner. A hook there refuses every ref but the pull request's own branch, and a second hook forwards what it accepts to GitHub using a token the container never sees. `GITHUB_TOKEN` permissions cannot be scoped to a ref, so this is the only way to say "this branch and no other".
 - **Reading GitHub.** A read-only GitHub MCP server, started on the runner, reached through the gate.
-- **Fetching.** The work tree arrives with the pull request's head and the commit it branched from. `bring` asks the runner for anything else, by name and depth; it lands under `refs/brought/`, where it cannot move the branch the push is checked against.
+- **Fetching.** The work tree arrives with the pull request's head and the commit it branched from, so a diff needs no network. `git fetch` reaches the rest through the forwarder, which serves this repository and nothing else.
 - **Answering.** The agent calls `finish` once. The runner posts the reply. Nothing the agent does reaches GitHub on its own.
 
 Who may instruct it is settled by GitHub's author association, so a comment from a passer-by is context, never an instruction.
