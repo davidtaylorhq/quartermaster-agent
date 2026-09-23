@@ -15,8 +15,12 @@ RUN useradd -u 1000 -m -d /home/agent -s /bin/bash agent \
 
 USER agent
 ENV PATH=/home/agent/.local/bin:$PATH
+# Both installers leave their downloads behind, and a later layer cannot
+# remove what an earlier one shipped.
 RUN curl -fsSL "https://raw.githubusercontent.com/samsaffron/term-llm/${TERM_LLM_VERSION}/install.sh" | sh \
- && curl -fsSL https://claude.ai/install.sh | bash
+ && curl -fsSL https://claude.ai/install.sh | bash \
+ && du -sh /home/agent/.cache /home/agent/.local /home/agent/.claude 2>/dev/null || true \
+ && rm -rf /home/agent/.cache /tmp/* /var/tmp/*
 
 USER root
 CMD ["sleep", "infinity"]
