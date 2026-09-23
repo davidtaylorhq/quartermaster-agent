@@ -105,13 +105,6 @@ jobs:
       PROGRESS_SCRIPT: ${{ github.workspace }}/quartermaster/src/progress.ts
 
     steps:
-      - name: Say we have seen it
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh api --method POST --silent
-          "/repos/${{ github.repository }}/issues/comments/${{ github.event.comment.id }}/reactions"
-          -f content=eyes
-
       - name: Work out where this workflow came from
         id: self
         env:
@@ -132,7 +125,6 @@ jobs:
           echo "ASSET_REPO=$repo" >> "$GITHUB_ENV"
           echo "ASSET_REF=$WORKFLOW_SHA" >> "$GITHUB_ENV"
 
-
       - name: Check out the agent
         uses: actions/checkout@v7
         with:
@@ -146,43 +138,6 @@ jobs:
             agent
           path: quartermaster
           persist-credentials: false
-
-      - name: Name the agent
-        run: |
-          name='${{ inputs.bot-name }}'
-          [ -n "$name" ] || name="${MENTION#@}"
-          echo "BOT_NAME=$name" >> "$GITHUB_ENV"
-
-      - name: Read the model credentials
-        env:
-          PROVIDER_ENV: ${{ secrets.provider-env }}
-        run: quartermaster/src/provider-env.ts "$RUNNER_TEMP/provider.env"
-
-      - name: Check out the project's configuration
-        uses: actions/checkout@v7
-        with:
-          # The default branch, never the pull request head. What this says
-          # decides what runs on the runner, so a pull request must not be
-          # able to choose it.
-          ref: ${{ github.event.repository.default_branch }}
-          fetch-depth: 1
-          sparse-checkout: |
-            ${{ inputs.environments }}
-            ${{ inputs.term-llm-config }}
-          sparse-checkout-cone-mode: false
-          path: project
-          persist-credentials: false
-
-      - name: Read the project's development environments
-        env:
-          ENVIRONMENTS: ${{ inputs.environments }}
-        run: |
-          # A fault in this file stops the run now. Found later, the bot has
-          # already told somebody it is working on their comment.
-          quartermaster/src/environments.ts \
-            "project/$ENVIRONMENTS" "$RUNNER_TEMP/environments.json"
-          echo "ENVIRONMENTS_JSON=$RUNNER_TEMP/environments.json" >> "$GITHUB_ENV"
-
       - parallel:
           - name: Reading pending requests
             id: mine
@@ -211,7 +166,38 @@ jobs:
               IS_PULL_REQUEST: ${{ github.event.issue.pull_request && 'yes' || 'no' }}
               DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
             run: quartermaster/src/resolve.ts
-
+      - name: Name the agent
+        run: |
+          name='${{ inputs.bot-name }}'
+          [ -n "$name" ] || name="${MENTION#@}"
+          echo "BOT_NAME=$name" >> "$GITHUB_ENV"
+      - name: Read the model credentials
+        env:
+          PROVIDER_ENV: ${{ secrets.provider-env }}
+        run: quartermaster/src/provider-env.ts "$RUNNER_TEMP/provider.env"
+      - name: Check out the project's configuration
+        uses: actions/checkout@v7
+        with:
+          # The default branch, never the pull request head. What this says
+          # decides what runs on the runner, so a pull request must not be
+          # able to choose it.
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 1
+          sparse-checkout: |
+            ${{ inputs.environments }}
+            ${{ inputs.term-llm-config }}
+          sparse-checkout-cone-mode: false
+          path: project
+          persist-credentials: false
+      - name: Read the project's development environments
+        env:
+          ENVIRONMENTS: ${{ inputs.environments }}
+        run: |
+          # A fault in this file stops the run now. Found later, the bot has
+          # already told somebody it is working on their comment.
+          quartermaster/src/environments.ts \
+            "project/$ENVIRONMENTS" "$RUNNER_TEMP/environments.json"
+          echo "ENVIRONMENTS_JSON=$RUNNER_TEMP/environments.json" >> "$GITHUB_ENV"
       - parallel:
           - name: Say we are on it
             if: steps.mine.outputs.mine == 'true'
@@ -250,7 +236,6 @@ jobs:
             env:
               SANDBOX_IMAGE: ghcr.io/${{ steps.self.outputs.repo }}/sandbox:${{ steps.self.outputs.sha }}
             run: docker pull "$SANDBOX_IMAGE"
-
       - name: Stand up the host services
         if: steps.mine.outputs.mine == 'true'
         env:
@@ -262,7 +247,6 @@ jobs:
           GITHUB_TOOLSETS: pull_requests,issues
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: quartermaster/scripts/host-setup
-
       - name: Run the agent
         if: steps.mine.outputs.mine == 'true'
         env:
@@ -286,7 +270,6 @@ jobs:
         run: |
           quartermaster/scripts/sandbox-up
           quartermaster/src/converse.ts
-
       - name: Post what a failed run left behind
         if: failure() && steps.mine.outputs.mine == 'true'
         env:
@@ -294,11 +277,9 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
         run: quartermaster/src/post-review.ts || true
-
       - name: Show what happened behind the gate
         if: failure() && steps.mine.outputs.mine == 'true'
         run: cat "$RUNNER_TEMP/dev-up.log" 2>/dev/null || echo "the development environment was never asked for"
-
       - name: Note that a newer mention took over
         if: cancelled() && steps.mine.outputs.mine == 'true'
         env:
@@ -307,7 +288,6 @@ jobs:
           gh api --method PATCH \
             "/repos/${{ github.repository }}/issues/comments/${{ steps.ack.outputs.id }}" \
             -f body="Superseded by a newer mention." >/dev/null
-
       - name: Report failure
         if: failure() && steps.mine.outputs.mine == 'true'
         env:
