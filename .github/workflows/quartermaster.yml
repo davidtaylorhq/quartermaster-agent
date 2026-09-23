@@ -263,7 +263,7 @@ jobs:
           - name: Pull the sandbox image
             if: steps.seen.outputs.ours == 'true'
             env:
-              SANDBOX_IMAGE: ghcr.io/${{ steps.self.outputs.repo }}/sandbox:${{ steps.self.outputs.sha }}
+              SANDBOX_IMAGE: ghcr.io/${{ steps.self.outputs.repo }}/sandbox:latest
             run: docker pull "$SANDBOX_IMAGE"
       - name: Stand up the host services
         if: steps.seen.outputs.ours == 'true'
@@ -287,7 +287,7 @@ jobs:
           HEAD_REF: ${{ steps.pr.outputs.head_ref }}
           CAN_PUSH: ${{ steps.pr.outputs.can_push }}
           PUSH_BLOCKED_BECAUSE: ${{ steps.pr.outputs.reason }}
-          SANDBOX_IMAGE: ghcr.io/${{ steps.self.outputs.repo }}/sandbox:${{ steps.self.outputs.sha }}
+          SANDBOX_IMAGE: ghcr.io/${{ steps.self.outputs.repo }}/sandbox:latest
           AGENT_DIR: ${{ github.workspace }}/quartermaster/agent
           SKILLS_DIR: ${{ github.workspace }}/quartermaster/agent/skills
           MCP_TEMPLATE: ${{ github.workspace }}/quartermaster/agent/mcp.json
