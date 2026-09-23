@@ -49,21 +49,40 @@ export async function publish(): Promise<void> {
   const reply = ((JSON.parse(readFileSync(finish, "utf8")).reply as string) ?? "").trim();
 
   const findingsFile = join(temp, "findings.jsonl");
-  const comments = existsSync(findingsFile) ? readFindings(findingsFile) : [];
-if (comments.length === 0) {
+  const comments = process.env.IS_PULL_REQUEST === "yes" && existsSync(findingsFile)
+    ? readFindings(findingsFile)
+    : [];
+
+  if (comments.length > 0) {
+    // One review, so the author gets one notification rather than one per point.
+    console.error(`posting ${comments.length} line comment(s)`);
+    try {
+      await request("POST", `/repos/${repo}/pulls/${issue}/reviews`, {
+        commit_id: readFileSync(join(temp, "relay.pushed"), "utf8").trim(),
+        event: "COMMENT",
+        body: sign(reply),
+        comments,
+      });
+      return;
+    } catch (error) {
+      // GitHub takes a review whole or not at all, and one line outside the
+      // diff is enough to lose it. The answer is worth more than the anchors.
+      console.error(`the review was refused, so its points go in the reply: ${error}`);
+      return comment(repo, issue, [reply, ...comments.map(asText)].join("\n\n"));
+    }
+  }
+
   if (!reply) {
     console.error("the agent finished with nothing to say");
     return;
   }
-  await request("POST", `/repos/${repo}/issues/${issue}/comments`, { body: sign(reply) });
-} else {
-  // One review, so the author gets one notification rather than one per point.
-  console.error(`posting ${comments.length} line comment(s)`);
-  await request("POST", `/repos/${repo}/pulls/${issue}/reviews`, {
-    commit_id: readFileSync(join(temp, "relay.pushed"), "utf8").trim(),
-    event: "COMMENT",
-    body: sign(reply),
-    comments,
-  });
+  await comment(repo, issue, reply);
 }
+
+function asText(f: Finding): string {
+  return `**\`${f.path}\`** line ${f.line}\n\n${f.body}`;
+}
+
+async function comment(repo: string, issue: string, body: string): Promise<void> {
+  await request("POST", `/repos/${repo}/issues/${issue}/comments`, { body: sign(body) });
 }

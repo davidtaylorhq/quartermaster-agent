@@ -64,17 +64,17 @@ The app needs write on issues, pull requests and contents, and it has to be
 installed on the repository. `bot-login` then settles itself from the app.
 
 This is worth more than a name. A push made with `GITHUB_TOKEN` never starts a
-workflow — GitHub stops that to keep runs from triggering themselves — so the
-agent's commits arrive on a pull request with no checks against them. An app's
-push starts them like anybody else's.
+workflow, which GitHub does to stop runs triggering themselves, so the agent's
+commits arrive on a pull request with no checks against them. An app's push
+starts them.
 
-The app is settled before anything else happens, because the eyes the agent
-puts on a comment are what claim it, and that only settles which run answers
-while one account is doing the reacting.
+The app is settled before anything else happens. The eyes the agent puts on a
+comment are what claim it, and every run has to react as the same account for
+that to work.
 
 ## Choosing a model
 
-The agent runs [term-llm](https://github.com/samsaffron/term-llm), so it reaches any model term-llm does, and nothing here knows the name of a single provider.
+The agent runs [term-llm](https://github.com/samsaffron/term-llm), so it reaches any model term-llm does. Nothing here names a provider.
 
 Credentials arrive as one secret you compose from your own:
 
@@ -106,14 +106,9 @@ term-llm also reads `op://` for 1Password, `file://`, `srv://` and `$(...)` in a
 
 They are masked before they reach a log, never written into the docker command line, and kept out of `$GITHUB_ENV`.
 
-They do reach term-llm's own environment, because a provider that shells out reads them from there. So two things take them back out again:
+They do reach term-llm's own environment, because a provider that shells out reads them from there. Every shell command the agent runs is stripped of them: term-llm starts each one with `$SHELL`, which is a shell of ours that drops those names first.
 
-- **Every shell command the agent runs is stripped of them.** term-llm starts each one with `$SHELL`, which is a shell of ours that drops those names first.
-- **Anything the agent publishes is redacted.** A reply is the one thing it writes that leaves the sandbox, and log masking does not reach a pull request comment.
-
-Everything named in `provider-env` is redacted, not only the secret-looking ones, so avoid passing values you would want quoted back to you.
-
-What remains is that the agent's own process holds them, and there is no egress filtering, so a determined prompt injection could still send them somewhere. Removing them from the container entirely needs a proxy on the runner, which is not built yet.
+What remains is that the agent's own process holds them. Nothing checks what it writes, and there is no egress filtering, so a determined prompt injection could put them in a reply or send them somewhere. Keeping them out of the container needs a proxy on the runner, which is not built yet.
 
 ## Running tests and linters
 
@@ -180,5 +175,5 @@ Who may instruct it is settled by GitHub's author association, so a comment from
 ## What this does not do yet
 
 - **No egress filtering.** The container can reach the whole internet. A prompt injection in a pull request cannot steal a GitHub token, because there isn't one, but it can talk to anything.
-- **The model credential is inside the container.** The GitHub token is not, but the key that pays for inference is. It is stripped from the agent's shell commands, which is not the same as it not being there.
+- **The model credential is inside the container.** The GitHub token is not, but the key that pays for inference is. Stripping it from the agent's shell commands is not the same as it not being there.
 - **A project cannot add its own instructions.** The agent reads the prompt this workflow ships and nothing from the repository it is working in.
