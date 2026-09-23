@@ -18,6 +18,9 @@ CONTAINER="quartermaster_dev_$NAME"
 # and the agent ran it again to see it cleanly. All of it goes to the log the
 # runner follows instead.
 note() { echo "[$NAME] $*" >> "$LOG"; }
+# What goes wrong has to reach the agent. Everything else stays in the log:
+# the agent asked for one command, and should not be read pages of another.
+fatal() { note "$*"; echo "$BOT_NAME: $NAME: $*" >&2; exit 1; }
 progress() {
   if ! "$PROGRESS" "$@" >>"$LOG" 2>&1; then
     echo "[$NAME] progress $* failed" >> "$LOG"
@@ -32,10 +35,19 @@ flock 9
 # A container is made once and set up once. One that has gone away stays gone:
 # starting a second over volumes the first already wrote to would run setup
 # against a state it was promised it would never see.
-case "$(docker inspect -f '{{.State.Status}}' "$CONTAINER" 2>/dev/null || echo none)" in
+# Only a successful inspect says anything about the container. Reading the
+# failure's output instead trusts docker to print nothing when it cannot find
+# one, and it does not.
+status=none
+if found=$(docker inspect -f '{{.State.Status}}' "$CONTAINER" 2>/dev/null); then
+  status=$(printf '%s' "$found" | tr -d '[:space:]')
+  [ -n "$status" ] || status=none
+fi
+
+case "$status" in
   running) exit 0 ;;
   none)    ;;
-  *)       note "the environment stopped and will not be started again"; exit 1 ;;
+  *)       fatal "the environment $status and will not be started again" ;;
 esac
 
 # The agent got as far as needing this, so that stretch of work is finished.
@@ -55,8 +67,7 @@ args=(run -d --name "$CONTAINER" -v "$WORKTREE_VOLUME:$MOUNT" -w "$MOUNT")
 args+=("$IMAGE")
 [ -n "$CMD" ] && args+=("$CMD")
 if ! docker "${args[@]}" >>"$LOG" 2>&1; then
-  note "the container would not start"
-  exit 1
+  fatal "the container would not start"
 fi
 
 # The sandbox writes the work tree as uid 1000, so whoever runs commands here
@@ -69,15 +80,14 @@ if [ -n "$USER_NAME" ]; then
       groupmod -g 1000 "$1" 2>/dev/null || true
       chown -R 1000:1000 "$(getent passwd "$1" | cut -d: -f6)"
     }
-  ' sh "$USER_NAME" >>"$LOG" 2>&1 || { note "could not give $USER_NAME uid 1000"; exit 1; }
+  ' sh "$USER_NAME" >>"$LOG" 2>&1 || fatal "could not give $USER_NAME uid 1000"
 fi
 
 if [ -n "$SETUP" ]; then
   note "setting up"
   if ! docker exec -i ${USER_NAME:+-u "$USER_NAME"} -w "$MOUNT" -e CI=1 \
        "$CONTAINER" bash -lc "$SETUP" </dev/null >>"$LOG" 2>&1; then
-    note "setup failed"
-    exit 1
+    fatal "setup failed, and the log has why"
   fi
 fi
 
