@@ -1,10 +1,13 @@
 #!/bin/bash
-# Boot the sandbox and run the agent in it.
+# Build the sandbox the agent works in.
 #
 # The sandbox is deliberately small: git, ssh and term-llm. It holds no
 # credentials and mounts nothing from the runner. The work tree is a docker
 # volume, which the development environment mounts too if the agent ever needs
 # one, so a run that only answers a question never waits for it.
+#
+# It writes what the conversation needs to reach back into it, and stops
+# there: talking to the agent is a separate thing with a loop of its own.
 set -Eeuo pipefail
 
 : "${RUNNER_TEMP:?}" "${BRIDGE_IP:?}" "${SSH_PORT:?}"
@@ -159,36 +162,12 @@ fi
 
 docker exec -u root "$CONTAINER" chown -R agent:agent "$HOME_DIR/.config"
 
-progress() { "${PROGRESS_SCRIPT:?}" "$@" || true; }
-
-# Whatever the development environment does happens behind the gate, so its
-# output goes to the sandbox and never here. Follow its log while the agent
-# runs, or the runner shows nothing at all for the minutes it takes.
-: > "$RUNNER_TEMP/dev-up.log"
-tail -n +1 -F "$RUNNER_TEMP/dev-up.log" 2>/dev/null &
-tail_pid=$!
-trap 'kill "$tail_pid" 2>/dev/null || true' EXIT
-
-progress next
-log "running the agent"
-docker cp "$RUNNER_TEMP/prompt.txt" "$CONTAINER:$HOME_DIR/prompt.txt"
-set +e
-as_agent "
-  term-llm ask \
-    --agent quartermaster \
-    ${PROVIDER:+--provider "$PROVIDER"} \
-    --session-db $HOME_DIR/session.db \
-    --yolo \
-    --text \
-    --stats \
-    --max-turns $MAX_TURNS \
-    --timeout $AGENT_TIMEOUT \
-    \"\$(cat $HOME_DIR/prompt.txt)\" 2>&1
-" | sed -u -e 's/.*\r//'
-status=${PIPESTATUS[0]}
-set -e
-
-docker cp "$CONTAINER:$HOME_DIR/finish.json"    "$RUNNER_TEMP/finish.json"      2>/dev/null || true
-docker cp "$CONTAINER:$HOME_DIR/findings.jsonl" "$RUNNER_TEMP/findings.jsonl"   2>/dev/null || true
-
-exit "$status"
+log "sandbox ready"
+cat > "$RUNNER_TEMP/sandbox.json" <<JSON
+{
+  "container": "$CONTAINER",
+  "home": "$HOME_DIR",
+  "sshOptions": "$SSH_OPTS",
+  "credentials": [$(printf '"%s",' ${PROVIDER_ENV_NAMES:-} | sed 's/,$//')]
+}
+JSON
