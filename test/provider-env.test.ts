@@ -11,7 +11,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-const script = join(import.meta.dirname, "provider-env.ts");
+const script = join(import.meta.dirname, "..", "bin", "provider-env.ts");
 
 function read(blob: string) {
   const dir = mkdtempSync(join(tmpdir(), "creds-"));

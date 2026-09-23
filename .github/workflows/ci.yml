@@ -29,11 +29,11 @@ jobs:
 
           - name: ESLint
             if: ${{ !cancelled() }}
-            run: npx eslint bin lib
+            run: npx eslint bin lib test
 
           - name: Prettier
             if: ${{ !cancelled() }}
-            run: npx prettier --check bin lib eslint.config.mjs
+            run: npx prettier --check bin lib test eslint.config.mjs
 
           - name: Shell
             if: ${{ !cancelled() }}

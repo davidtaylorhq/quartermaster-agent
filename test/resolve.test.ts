@@ -28,15 +28,19 @@ async function resolve(env: NodeJS.ProcessEnv) {
   writeFileSync(exported, "");
 
   // Async: the stub API answers from this process's own event loop.
-  const child = spawn(join(import.meta.dirname, "resolve.ts"), [], {
-    env: {
-      ...process.env,
-      GITHUB_OUTPUT: out,
-      GITHUB_ENV: exported,
-      GITHUB_API_URL: `http://127.0.0.1:${(api.address() as { port: number }).port}`,
-      ...env,
-    },
-  });
+  const child = spawn(
+    join(import.meta.dirname, "..", "bin", "resolve.ts"),
+    [],
+    {
+      env: {
+        ...process.env,
+        GITHUB_OUTPUT: out,
+        GITHUB_ENV: exported,
+        GITHUB_API_URL: `http://127.0.0.1:${(api.address() as { port: number }).port}`,
+        ...env,
+      },
+    }
+  );
   let stderr = "";
   child.stderr.on("data", (c) => (stderr += c));
   child.stdout.resume();

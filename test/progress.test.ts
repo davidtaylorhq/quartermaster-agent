@@ -17,7 +17,7 @@ function board(extra: Record<string, string> = {}) {
   const dir = mkdtempSync(join(tmpdir(), "progress-"));
   const state = join(dir, "progress.json");
   const run = (...args: string[]) =>
-    spawnSync(join(import.meta.dirname, "progress.ts"), args, {
+    spawnSync(join(import.meta.dirname, "..", "bin", "progress.ts"), args, {
       encoding: "utf8",
       env: {
         ...process.env,

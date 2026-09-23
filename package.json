@@ -4,9 +4,9 @@
   "type": "module",
   "scripts": {
     "check": "tsc --noEmit",
-    "test": "node --test --experimental-strip-types --no-warnings=ExperimentalWarning 'bin/*.test.ts' 'lib/*.test.ts'",
-    "lint": "eslint bin lib && prettier --check bin lib eslint.config.mjs",
-    "lint:fix": "eslint --fix bin lib && prettier --write bin lib eslint.config.mjs"
+    "test": "node --test --experimental-strip-types --no-warnings=ExperimentalWarning 'test/*.test.ts'",
+    "lint": "eslint bin lib test && prettier --check bin lib test eslint.config.mjs",
+    "lint:fix": "eslint --fix bin lib test && prettier --write bin lib test eslint.config.mjs"
   },
   "devDependencies": {
     "@discourse/lint-configs": "^3.7.0",

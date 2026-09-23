@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { load } from "./credentials.ts";
+import { load } from "../lib/credentials.ts";
 
 function withFile(contents: string) {
   const dir = mkdtempSync(join(tmpdir(), "creds-"));

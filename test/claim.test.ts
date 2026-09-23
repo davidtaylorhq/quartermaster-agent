@@ -9,7 +9,7 @@ const TRIGGER = 100;
 let api: Server;
 let comments: unknown[] = [];
 let reacted: number[] = [];
-let claim: typeof import("./claim.ts").claim;
+let claim: typeof import("../lib/claim.ts").claim;
 let temp: string;
 
 before(async () => {
@@ -43,7 +43,7 @@ before(async () => {
     FOLLOWUP_WINDOW: "0",
     CLAIMED: String(TRIGGER),
   });
-  ({ claim } = await import(`./claim.ts?${temp}`));
+  ({ claim } = await import(`../lib/claim.ts?${temp}`));
 });
 
 after(() => {

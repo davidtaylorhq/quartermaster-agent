@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { withoutFooter } from "./thread.ts";
+import { withoutFooter } from "../lib/thread.ts";
 
 test("our signature is trimmed off", () => {
   const body =

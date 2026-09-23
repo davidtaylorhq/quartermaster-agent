@@ -11,7 +11,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
 
-const gate = join(import.meta.dirname, "host-gate");
+const gate = join(import.meta.dirname, "..", "bin", "host-gate");
 let home: string;
 let relay: string;
 let stubs: string;

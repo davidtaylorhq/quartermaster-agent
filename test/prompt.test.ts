@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { again, first, type Situation } from "./prompt.ts";
+import { again, first, type Situation } from "../lib/prompt.ts";
 
 const pr: Situation = {
   repo: "acme/thing",

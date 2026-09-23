@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-const script = join(import.meta.dirname, "environments.ts");
+const script = join(import.meta.dirname, "..", "bin", "environments.ts");
 
 function parse(yaml: string | null) {
   const dir = mkdtempSync(join(tmpdir(), "envs-"));

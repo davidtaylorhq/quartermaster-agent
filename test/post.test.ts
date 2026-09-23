@@ -9,7 +9,7 @@ let api: Server;
 let temp: string;
 let sent: { path: string; body: string }[] = [];
 let reject: Set<string>;
-let publish: typeof import("./post.ts").publish;
+let publish: typeof import("../lib/post.ts").publish;
 
 before(async () => {
   api = createServer((req, res) => {
@@ -33,7 +33,7 @@ before(async () => {
   process.env.GITHUB_REPOSITORY = "o/p";
   process.env.ISSUE_NUMBER = "7";
   process.env.GITHUB_API_URL = `http://127.0.0.1:${(api.address() as { port: number }).port}`;
-  ({ publish } = await import(`./post.ts?${temp}`));
+  ({ publish } = await import(`../lib/post.ts?${temp}`));
 });
 
 after(() => {

@@ -13,5 +13,5 @@
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true
   },
-  "include": ["bin", "lib"]
+  "include": ["bin", "lib", "test"]
 }
