@@ -1,15 +1,13 @@
-// Print what has already been said on this issue.
-//
-// The agent has no memory between mentions, so the thread goes in the prompt.
+// The agent has no memory between mentions, so what was said goes in the
+// prompt.
 import { listComments, TRUSTED, type Comment } from "./github.ts";
 
 const KEEP = 20;
 const WIDTH = 800;
 
-// Our own bookkeeping is not conversation.
+// The checklist is bookkeeping, not conversation.
 const NOISE = ["Superseded by a newer mention.", "The run failed.", "Starting…", "On it!"];
-// A thread holds replies signed both ways; the wrapped one strands its outer
-// tag if trimmed at the inner.
+// Longest first: trimming a wrapped footer at its inner tag strands the outer.
 const FOOTERS = ['<div align="right"><sub>:robot:', "<sub>:robot:"];
 
 export function withoutFooter(body: string): string {

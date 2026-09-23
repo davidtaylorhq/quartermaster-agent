@@ -1,6 +1,6 @@
 #!/bin/bash
-# Stand up everything the sandbox is allowed to reach: a git relay, an SSH gate
-# in front of it, and an inference endpoint. Every credential stays here.
+# Stand up everything the sandbox is allowed to reach. Every credential stays
+# on this side of it.
 set -euo pipefail
 
 step() { echo "[host] $*" >&2; }
@@ -18,7 +18,7 @@ WORKTREE=$RUNNER_TEMP/worktree
 
 step "preparing $STATE"
 
-# Fetch it now, while the sandbox is being built, rather than on first use.
+# While the sandbox is being built, rather than on first use.
 nohup docker pull -q "$MCP_IMAGE" > "$RUNNER_TEMP/mcp-pull.log" 2>&1 &
 mkdir -p "$STATE"
 chmod 700 "$STATE"
@@ -31,13 +31,12 @@ step "building the relay on $bridge"
 # ---------------------------------------------------------------- git relay
 git --git-dir="$RELAY" config core.bare true
 git --git-dir="$RELAY" symbolic-ref HEAD "refs/heads/$HEAD_REF"
-# What the push at the end leases against. The relay was copied from the work
-# tree, so this is the commit the agent started from rather than a second
-# reading of the branch, which could have moved.
+# What the push leases against. The relay is a copy of the work tree, so this
+# is the commit the agent started from.
 git --git-dir="$RELAY" rev-parse "refs/heads/$HEAD_REF" > "$PUSHED"
 
 # A branch name may hold a backtick, a dollar or a quote, and a shell on the
-# runner reads all of this. Nothing is pasted into a script.
+# runner reads all of this.
 step "writing the gate environment"
 : > "$STATE/env"
 chmod 600 "$STATE/env"
@@ -105,18 +104,17 @@ install -m 0755 "$(dirname "$0")/host-gate"  "$STATE/gate"
 install -m 0755 "$(dirname "$0")/dev-boot"   "$STATE/dev-boot"
 install -m 0644 "$ENVIRONMENTS_JSON" "$STATE/environments.json"
 
-# --------------------------------------------------------------- the ssh gate
 # ------------------------------------------------------- the read-only path
-# The sandbox has no credential, so its clone comes through here. Only
-# upload-pack is forwarded; the branch is written through the gate below.
+# The sandbox has no credential, so its clone comes through here.
 step "forwarding reads to GitHub on $bridge:$FORWARD_PORT"
 nohup "$FORWARD_SCRIPT" "$bridge" "$FORWARD_PORT" > "$RUNNER_TEMP/forward.log" 2>&1 &
 
+# --------------------------------------------------------------- the ssh gate
 step "generating keys"
 ssh-keygen -q -t ed25519 -N '' -f "$STATE/hostkey"
 ssh-keygen -q -t ed25519 -N '' -f "$STATE/clientkey" -C "$BOT_NAME"
-# The default location. sshd ignores an AuthorizedKeysFile elsewhere without
-# saying so, which looks exactly like a wrong key.
+# The default location: sshd ignores an AuthorizedKeysFile elsewhere in
+# silence, which looks exactly like a wrong key.
 mkdir -p "$HOME/.ssh"
 chmod 700 "$HOME/.ssh"
 printf 'restrict,command="%s/gate" %s\n' "$STATE" "$(cat "$STATE/clientkey.pub")" \
@@ -132,13 +130,11 @@ PermitRootLogin no
 PasswordAuthentication no
 KbdInteractiveAuthentication no
 PubkeyAuthentication yes
-# The runner account has no password. Without PAM, sshd reads that as locked
-# and refuses the key without logging why.
+# The runner account has no password, which sshd reads as locked without PAM.
 UsePAM yes
 PrintMotd no
 LogLevel VERBOSE
-# The runner's home is group-writable, which sshd silently treats as reason to
-# ignore authorized_keys.
+# The runner's home is group-writable, which sshd silently refuses to trust.
 StrictModes no
 X11Forwarding no
 AllowTcpForwarding no

@@ -1,7 +1,4 @@
-// What the sandbox is allowed to ask the runner for.
-//
-// The gate is the whole of that boundary, so these drive it the way sshd does:
-// the verb in SSH_ORIGINAL_COMMAND, the client's own arguments discarded.
+// What the sandbox may ask the runner for, driven the way sshd drives it.
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";

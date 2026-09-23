@@ -42,8 +42,7 @@ appendFileSync(
   process.env.GITHUB_OUTPUT!,
   Object.entries(out).map(([k, v]) => `${k}=${v}`).join("\n") + "\n",
 );
-// The steps that stand up the gate and run the agent all read these, and a
-// job-level `env:` cannot reach a step's outputs.
+// A job-level `env:` cannot reach a step's outputs, and several steps want these.
 appendFileSync(
   process.env.GITHUB_ENV!,
   [

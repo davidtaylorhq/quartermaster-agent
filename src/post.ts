@@ -1,6 +1,5 @@
-// Publish everything a turn produced, as one review, once.
-//
-// The sandbox cannot reach GitHub; it leaves its reply and line comments here.
+// Publish everything a turn produced, as one review, once. The sandbox cannot
+// reach GitHub, so it leaves its reply and line comments here.
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { request } from "./github.ts";

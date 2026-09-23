@@ -1,6 +1,5 @@
-// What a project says about its environments decides what container runs on
-// the runner, so a file that is wrong should stop the run rather than produce
-// something almost right.
+// This file decides what container runs on the runner, so a fault in it has to
+// stop the run rather than produce something almost right.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";

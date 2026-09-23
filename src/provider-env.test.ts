@@ -1,5 +1,4 @@
-// The credentials a caller passes reach a file on the runner and a mask in the
-// log, and nothing else.
+// A caller's credentials reach a file on the runner and a mask in the log.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";

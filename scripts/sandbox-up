@@ -1,8 +1,6 @@
 #!/bin/bash
-# Build the sandbox the agent works in.
-#
-# Git, ssh and term-llm. The work tree was cloned while the image was pulling;
-# the development environment mounts the same directory.
+# Build the sandbox the agent works in: git, ssh and term-llm. The work tree is
+# already there, and the development environment mounts the same directory.
 set -Eeuo pipefail
 
 : "${RUNNER_TEMP:?}" "${BRIDGE_IP:?}" "${SSH_PORT:?}"
@@ -17,8 +15,8 @@ SSH_OPTS="-i $HOME_DIR/.ssh/gate -p $SSH_PORT -o StrictHostKeyChecking=no -o Use
 
 log() { echo "[sandbox] $*" >&2; }
 
-# A provider that shells out reads its credentials from term-llm's environment.
-# term-llm starts every shell tool call with $SHELL, so ours drops them again.
+# A provider that shells out reads these from term-llm's environment. Every
+# shell tool call starts with $SHELL, so ours drops them again.
 creds=()
 if [ -n "${PROVIDER_ENV_FILE:-}" ] && [ -s "$PROVIDER_ENV_FILE" ]; then
   set -a
@@ -64,8 +62,7 @@ docker cp "$CLIENT_KEY" "$CONTAINER:$HOME_DIR/.ssh/gate"
 docker exec -u root "$CONTAINER" chown agent:agent "$HOME_DIR/.ssh/gate"
 docker exec -u root "$CONTAINER" chmod 600 "$HOME_DIR/.ssh/gate"
 
-# Anything needing more than git runs in a named development environment, so
-# the log says where a command ran.
+# Anything needing more than git runs in a named development environment.
 if [ "$(jq 'length' "$ENVIRONMENTS_JSON")" != 0 ]; then
   log "installing the development environment wrapper"
   docker exec -u root "$CONTAINER" bash -c "
@@ -87,10 +84,8 @@ WRAP
   "
 fi
 
-# The clone already happened on the runner. What it could not know is where the
-# sandbox reaches the world from: reads through the forwarder, which holds the
-# credential the sandbox must not, and writes through the gate, where the
-# relay's hooks decide what reaches the branch.
+# Where the sandbox reaches the world from: the forwarder holds the credential
+# it must not, and the gate's hooks decide what reaches the branch.
 log "pointing the work tree at the gate"
 as_agent "
   set -e

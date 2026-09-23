@@ -4,9 +4,6 @@
 //     progress start LABEL...     the list, with the first step under way
 //     progress next [LABEL...]    finish this step, do these next, start the next
 //     progress done               finish this step; nothing follows
-//
-// Each step keeps how long it took, so the finished list says where the time
-// went. The first step is the queue, which is over before this runs at all.
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { scratch } from "./scratch.ts";
 
@@ -34,8 +31,7 @@ function render(labels: string[], at: number, took: number[]): string {
     const state = i < at ? "done" : i === at ? "active" : "pending";
     const [name, alt] = MARK[state];
     const spent = took[i] === undefined ? "" : ` — ${elapsed(took[i]!)}`;
-    // An image sits its bottom on the baseline by default, which leaves a
-    // round mark floating above the capitals.
+    // Without vertical-align the mark floats above the capitals.
     return (
       `<img src="${assets}/${name}" width="15" height="15" alt="${alt}"` +
       ` style="vertical-align: middle; margin-right: 2px">` +
@@ -48,8 +44,6 @@ function render(labels: string[], at: number, took: number[]): string {
   return `${opening}\n\n${lines.join("\n")}`;
 }
 
-// The checklist lives in one comment, written where it is first drawn and
-// edited after that.
 async function publish(next: Omit<State, "comment">): Promise<string | undefined> {
   const saved = existsSync(STATE)
     ? (JSON.parse(readFileSync(STATE, "utf8")) as { comment?: string })
@@ -88,8 +82,8 @@ async function publish(next: Omit<State, "comment">): Promise<string | undefined
 const [command, ...labels] = process.argv.slice(2);
 
 if (command === "start") {
-  // The queue and the runner coming up are already over, and the two
-  // timestamps for them are the only ones nothing else could have recorded.
+  // The queue is over before this runs, so its length comes from the two
+  // timestamps rather than a clock.
   const started = Number(process.env.RUN_STARTED);
   const asked = Date.parse(process.env.ASKED ?? "");
   const timed = Number.isFinite(started) && Number.isFinite(asked) && started > asked;

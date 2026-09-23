@@ -1,5 +1,4 @@
-# The sandbox the agent works in. Everything here is the same on every run, so
-# it is built once rather than assembled on the runner.
+# The sandbox the agent works in. The same on every run, so it is built once.
 FROM debian:stable-slim
 
 ARG TERM_LLM_VERSION=v0.9.55
@@ -15,11 +14,9 @@ RUN useradd -u 1000 -m -d /home/agent -s /bin/bash agent \
 
 USER agent
 ENV PATH=/home/agent/.local/bin:$PATH
-# Both installers leave their downloads behind, and a later layer cannot
-# remove what an earlier one shipped.
+# A later layer cannot remove what an earlier one shipped.
 RUN curl -fsSL "https://raw.githubusercontent.com/samsaffron/term-llm/${TERM_LLM_VERSION}/install.sh" | sh \
  && curl -fsSL https://claude.ai/install.sh | bash \
- && du -sh /home/agent/.cache /home/agent/.local /home/agent/.claude 2>/dev/null || true \
  && rm -rf /home/agent/.cache /tmp/* /var/tmp/*
 
 USER root

@@ -70,8 +70,7 @@ on:
 
 jobs:
   respond:
-    # A stranger's mention should not start a runner, so this is the same
-    # question `next-mention` asks, asked before anything boots.
+    # The same question `next-mention` asks, asked before anything boots.
     if: >-
       contains(github.event.comment.body, inputs.mention) &&
       contains(
@@ -81,12 +80,9 @@ jobs:
     runs-on: ${{ inputs.runs-on }}
     timeout-minutes: ${{ inputs.timeout-minutes }}
     concurrency:
-      # One run per issue at a time, queued rather than cancelled. Cancelling
-      # would kill a run waiting for a follow-up with the run that follow-up
-      # started, which is the one case where waiting was about to pay off.
-      # Queueing also means a run cannot start until the one that may have
-      # answered its comment has finished, so the mark it leaves is always
-      # there to be found.
+      # Queued rather than cancelled: cancelling would kill a run waiting for
+      # a follow-up with the run that follow-up started. Queueing also means
+      # the mark a finished run leaves is always there to be found.
       group: ${{ inputs.mention }}-${{ github.event.issue.number }}
       cancel-in-progress: false
     permissions:
@@ -122,18 +118,15 @@ jobs:
         env:
           COMMENT: ${{ github.event.comment.id }}
         run: |
-          # Reacting is how a run claims a comment: GitHub answers 201 when it
-          # added the reaction and 200 when it was already there. So this tells
-          # whoever asked that their mention landed, and settles whether there
-          # is anything here for this run to do.
+          # GitHub answers 201 when it added the reaction and 200 when it was
+          # already there, which settles whether this run has anything to do.
           status=$(curl -sS -o /dev/null -w '%{http_code}' -X POST \
             -H "authorization: Bearer $GH_TOKEN" \
             -H "accept: application/vnd.github+json" \
             -d '{"content":"eyes"}' \
             "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/issues/comments/$COMMENT/reactions")
 
-          # Everything before this was queueing and provisioning, which is
-          # what the reply's footer calls waiting.
+          # Everything before this was queueing and provisioning.
           echo "RUN_STARTED=$(date +%s%3N)" >> "$GITHUB_ENV"
           case "$status" in
             201) echo "ours=true" >> "$GITHUB_OUTPUT" ;;
@@ -149,9 +142,8 @@ jobs:
           WORKFLOW_REF: ${{ job.workflow_ref }}
           WORKFLOW_SHA: ${{ job.workflow_sha }}
         run: |
-          # Scripts, agent and checklist images are all served from the commit
-          # this workflow came from, so a caller pinned to a tag gets one
-          # matching set and never a mix of two.
+          # Everything is served from the commit this workflow came from, so a
+          # caller pinned to a tag gets one matching set.
           if [ -z "$WORKFLOW_SHA" ] || [ -z "$WORKFLOW_REF" ]; then
             echo "::error::job.workflow_ref/workflow_sha are empty; this workflow cannot locate its own scripts"
             exit 1
@@ -188,9 +180,8 @@ jobs:
             env:
               CLAIMED: ${{ github.event.comment.id }}
             run: |
-              # Not only the comment that started this run: one run is queued per
-              # issue, so a comment displaced from that queue has nothing else
-              # looking for it.
+              # One run is queued per issue, so a comment displaced from that
+              # queue has nothing else looking for it.
               if quartermaster/src/next-mention.ts; then
                 echo "mine=true" >> "$GITHUB_OUTPUT"
               else
@@ -210,19 +201,16 @@ jobs:
         env:
           HEAD_REF: ${{ steps.pr.outputs.head_ref }}
         run: |
-          # The sandbox cannot reach GitHub on its own, and waiting for it to
-          # boot before starting would put ten seconds on the way to an answer.
           # The runner has the credential, so it clones while the image pulls.
-          # `-c` config stays on this command and never reaches .git/config.
+          # `-c` stays on this command; `--config` would land in .git/config.
           auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
           git -c http.extraheader="AUTHORIZATION: basic $auth" \
               -c checkout.workers=0 \
             clone -q --depth 1 --branch "$HEAD_REF" \
             "${{ github.server_url }}/${{ github.repository }}.git" "$RUNNER_TEMP/worktree"
 
-          # The relay polices the push, and leases against the commit the agent
-          # started from. Copying the work tree's objects is what makes those
-          # the same commit rather than two fetches that may disagree.
+          # The relay leases against the commit the agent started from, and
+          # copying is what makes them the same commit.
           cp -a "$RUNNER_TEMP/worktree/.git" "$RUNNER_TEMP/relay.git"
 
           # The sandbox runs as uid 1000; the runner is somebody else.
@@ -234,9 +222,8 @@ jobs:
         background: true
         uses: actions/checkout@v7
         with:
-          # The default branch, never the pull request head. What this says
-          # decides what runs on the runner, so a pull request must not be
-          # able to choose it.
+          # The default branch, never the pull request head: what this says
+          # decides what runs on the runner.
           ref: ${{ github.event.repository.default_branch }}
           fetch-depth: 1
           sparse-checkout: |
@@ -276,8 +263,7 @@ jobs:
         env:
           ENVIRONMENTS: ${{ inputs.environments }}
         run: |
-          # A fault in this file stops the run now. Found later, the bot has
-          # already told somebody it is working on their comment.
+          # Found later, the bot has already said it is working on the comment.
           quartermaster/src/environments.ts \
             "project/$ENVIRONMENTS" "$RUNNER_TEMP/environments.json"
           echo "ENVIRONMENTS_JSON=$RUNNER_TEMP/environments.json" >> "$GITHUB_ENV"

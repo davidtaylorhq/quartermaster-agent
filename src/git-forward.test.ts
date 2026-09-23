@@ -1,5 +1,4 @@
-// The forwarder is the sandbox's only way to reach GitHub and the only thing
-// holding the credential, so what it refuses matters more than what it passes.
+// The forwarder holds the credential, so what it refuses is what matters.
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { createServer, type Server } from "node:http";

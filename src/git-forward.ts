@@ -1,14 +1,12 @@
 #!/usr/bin/env -S node --experimental-strip-types --no-warnings=ExperimentalWarning
-// Lets the sandbox clone the repository without holding a credential.
+// Lets the sandbox clone without holding a credential.
 //
-// Two paths reach GitHub and nothing else does. Both belong to `upload-pack`,
-// which only ever reads, so this needs no understanding of what it carries.
-// Writing stays with the ssh gate, where git itself decides what may reach the
-// branch.
+// Both paths it allows belong to `upload-pack`, which only reads, so the path
+// is the whole policy. Writing goes to the ssh gate instead.
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { Readable } from "node:stream";
 
-// The hop's own, and a length that no longer describes a streamed body.
+// Ours to set: a streamed body has a different length, and this is a new hop.
 const OURS = ["host", "connection", "content-length", "transfer-encoding", "authorization"];
 
 export function permitted(repo: string, method: string, url: string): boolean {
@@ -35,7 +33,7 @@ export function handler(repo: string, authorization: string, upstream = "https:/
         method: req.method,
         headers,
         body: req.method === "POST" ? (Readable.toWeb(req) as ReadableStream) : undefined,
-        // Following one would carry the credential wherever it pointed.
+        // A redirect would carry the credential wherever it pointed.
         redirect: "manual",
         // @ts-expect-error node takes this to stream a request body
         duplex: "half",

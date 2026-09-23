@@ -1,7 +1,6 @@
 #!/usr/bin/env -S node --experimental-strip-types --no-warnings=ExperimentalWarning
 // Answer what is waiting (`first`), or hold the sandbox open for whatever
-// comes next (`followups`). Two invocations so the log says how long the
-// first reply took.
+// comes next (`followups`).
 import { spawn, spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
@@ -29,8 +28,8 @@ function progress(...args: string[]) {
 
 const opening = process.argv[2] !== "followups";
 
-// The development environment runs behind the gate; this log is the only way
-// its output reaches the runner. A later step picks it up where it left off.
+// The development environment runs behind the gate, so this log is the only
+// way its output reaches the runner.
 if (opening) writeFileSync(join(temp, "dev-up.log"), "");
 const devLog = spawn("tail", ["-n", opening ? "+1" : "0", "-F", join(temp, "dev-up.log")], {
   stdio: ["ignore", "inherit", "ignore"],
@@ -99,7 +98,7 @@ const where: Situation = {
 
 try {
   if (opening) {
-    // The sandbox is up; the two inside `turn` carry it to the wait.
+    // The sandbox is up. `turn` marks the rest.
     progress("next");
     const asked = waiting();
     const history = await thread(new Set(asked.map((m) => String(m.id))));

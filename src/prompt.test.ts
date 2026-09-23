@@ -1,5 +1,4 @@
-// What the agent is told decides what it does, so the rules it is given are
-// worth pinning rather than discovering from a run.
+// What the agent is told decides what it does, so the rules are pinned here.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { again, first, type Situation } from "./prompt.ts";

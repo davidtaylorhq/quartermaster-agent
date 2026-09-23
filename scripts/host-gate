@@ -1,8 +1,8 @@
 #!/bin/sh
-# The only thing the sandbox can ask the runner to do.
+# The only things the sandbox can ask the runner to do.
 #
-# A forced command in authorized_keys. It matches the verb and supplies its own
-# arguments; the client's are discarded.
+# A forced command in authorized_keys: it matches the verb and supplies its own
+# arguments, discarding the client's.
 . "$HOME/.quartermaster/env"
 
 case "$SSH_ORIGINAL_COMMAND" in

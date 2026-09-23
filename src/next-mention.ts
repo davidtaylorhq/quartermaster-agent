@@ -1,15 +1,13 @@
 #!/usr/bin/env -S node --experimental-strip-types --no-warnings=ExperimentalWarning
-// Take the mentions nobody has answered yet, and say so by reacting.
-//
-// The reaction is what stops two runs answering the same comment.
+// Take the mentions nobody has answered yet. Reacting is what claims one, so
+// two runs cannot answer the same comment.
 import { writeFileSync } from "node:fs";
 import { listComments, request, TRUSTED, type Comment } from "./github.ts";
 import { scratch } from "./scratch.ts";
 
 const CLAIM = "eyes";
 const MACRO = process.env.MENTION!;
-// Older than this is a backlog, and answering a backlog at once is worse
-// than leaving it.
+// A backlog is better left alone than answered all at once.
 const MAX_AGE_HOURS = Number(process.env.MAX_COMMENT_AGE_HOURS ?? "1");
 const WINDOW = Number(process.env.FOLLOWUP_WINDOW ?? "60");
 
@@ -17,9 +15,8 @@ const repo = process.env.GITHUB_REPOSITORY!;
 const issue = process.env.ISSUE_NUMBER!;
 const out = scratch("mention.json");
 
-// Reacting is the claim, and GitHub answers 201 when it added the reaction
-// and 200 when this account had already added it. So asking is claiming, and
-// there is no moment between the two for another run to fit into.
+// GitHub answers 201 when it added the reaction and 200 when this account had
+// already added it, so asking and claiming are one step.
 async function react(id: number): Promise<boolean> {
   if (String(id) === process.env.CLAIMED) return true;
 
@@ -35,9 +32,7 @@ async function react(id: number): Promise<boolean> {
 }
 
 async function outstanding(cutoff: string): Promise<Comment[]> {
-  // Ask only for what could possibly be outstanding. Polling every few seconds
-  // for every comment on a long thread is a lot of pages for an answer that is
-  // almost always "nothing new".
+  // Polling a long thread in full, every few seconds, to hear "nothing new".
   const all = await listComments(repo, issue, cutoff);
   return all
     .filter((c) => c.created_at >= cutoff)

@@ -5,8 +5,7 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-// With no repository to talk to it writes its state and says nothing, which is
-// enough to pin that the first call carries the whole list.
+// With no repository to talk to it writes its state and says nothing.
 function run(args: string[], state: string, extra: Record<string, string> = {}) {
   return spawnSync(join(import.meta.dirname, "progress.ts"), args, {
     encoding: "utf8",
@@ -36,8 +35,8 @@ test("start records every step with the first under way", () => {
   rmSync(dir, { recursive: true, force: true });
 });
 
-// The checklist a run draws, walked the way a run walks it. Getting this wrong
-// leaves a spinner against a step that finished.
+// A whole run's worth of steps. Getting this wrong leaves a spinner against a
+// step that finished.
 test("a turn ends on the step that says it is waiting", () => {
   const dir = mkdtempSync(join(tmpdir(), "progress-"));
   const state = join(dir, "progress.json");
@@ -67,8 +66,8 @@ test("a turn ends on the step that says it is waiting", () => {
   rmSync(dir, { recursive: true, force: true });
 });
 
-// The queue is over by the time anything here runs, so its length has to come
-// from the two timestamps the run was given rather than from a clock.
+// The queue is over before any of this runs, so its length comes from the two
+// timestamps rather than a clock.
 test("the first step is timed from the comment to the workflow starting", () => {
   const dir = mkdtempSync(join(tmpdir(), "progress-"));
   const state = join(dir, "progress.json");
