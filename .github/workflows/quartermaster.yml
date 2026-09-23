@@ -55,9 +55,6 @@ on:
       agent-timeout:
         type: string
         default: "10m"
-      term-llm-version:
-        type: string
-        default: "v0.9.54"
       runs-on:
         type: string
         default: "ubuntu-latest"
@@ -102,7 +99,6 @@ jobs:
       MAX_COMMENT_AGE_HOURS: ${{ inputs.max-comment-age-hours }}
       MAX_TURNS: ${{ inputs.max-turns }}
       AGENT_TIMEOUT: ${{ inputs.agent-timeout }}
-      TERM_LLM_VERSION: ${{ inputs.term-llm-version }}
       PROGRESS_SCRIPT: ${{ github.workspace }}/quartermaster/src/progress.ts
 
     steps:
@@ -218,40 +214,11 @@ jobs:
         id: pr
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          IS_PULL_REQUEST: ${{ github.event.issue.pull_request && 'yes' || 'no' }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-        run: |
-          if [ -z "${{ github.event.issue.pull_request }}" ]; then
-            # No branch of its own, so it reads the default one. Everything
-            # downstream wants a branch and a commit; only pushing differs.
-            {
-              echo "ref=refs/heads/$DEFAULT_BRANCH"
-              echo "head_ref=$DEFAULT_BRANCH"
-              echo "can_push=false"
-              echo "reason=this is an issue, not a pull request"
-            } >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          head=$(gh pr view ${{ github.event.issue.number }} --repo ${{ github.repository }} \
-            --json headRefName,isCrossRepository \
-            --jq '[.headRefName, (.isCrossRepository|tostring)] | join(" ")')
-          read -r name fork <<<"$head"
-
-          echo "ref=refs/pull/${{ github.event.issue.number }}/head" >> "$GITHUB_OUTPUT"
-          echo "head_ref=$name" >> "$GITHUB_OUTPUT"
-
-          if [ "$fork" = true ]; then
-            # The job token cannot write to a fork at all, and the credential
-            # that could is broader than this job should ever hold.
-            echo "can_push=false" >> "$GITHUB_OUTPUT"
-            echo "reason=the branch lives in a fork, which this job cannot push to" >> "$GITHUB_OUTPUT"
-          elif [ "$name" = "$DEFAULT_BRANCH" ]; then
-            echo "can_push=false" >> "$GITHUB_OUTPUT"
-            echo "reason=the branch is $DEFAULT_BRANCH" >> "$GITHUB_OUTPUT"
-          else
-            echo "can_push=true" >> "$GITHUB_OUTPUT"
-            echo "reason=" >> "$GITHUB_OUTPUT"
-          fi
+        run: quartermaster/src/resolve.ts
 
       - name: Fetch the branch
         if: steps.mine.outputs.mine == 'true'
@@ -278,13 +245,7 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           GITHUB_TOOLSETS: pull_requests,issues
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          # Everything the sandbox can reach is stood up here, and every
-          # credential stays on this side of it.
-          curl -fsSL https://raw.githubusercontent.com/samsaffron/term-llm/${TERM_LLM_VERSION}/install.sh | sh
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-          export PATH="$HOME/.local/bin:$PATH"
-          quartermaster/scripts/host-setup
+        run: quartermaster/scripts/host-setup
 
       - name: Run the agent
         if: steps.mine.outputs.mine == 'true'
@@ -297,6 +258,7 @@ jobs:
           HEAD_REF: ${{ steps.pr.outputs.head_ref }}
           CAN_PUSH: ${{ steps.pr.outputs.can_push }}
           PUSH_BLOCKED_BECAUSE: ${{ steps.pr.outputs.reason }}
+          SANDBOX_IMAGE: ghcr.io/${{ steps.self.outputs.repo }}/sandbox:${{ steps.self.outputs.sha }}
           AGENT_DIR: ${{ github.workspace }}/quartermaster/agent
           SKILLS_DIR: ${{ github.workspace }}/quartermaster/agent/skills
           MCP_TEMPLATE: ${{ github.workspace }}/quartermaster/agent/mcp.json

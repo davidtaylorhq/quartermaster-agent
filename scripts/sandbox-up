@@ -7,11 +7,10 @@ set -Eeuo pipefail
 
 : "${RUNNER_TEMP:?}" "${BRIDGE_IP:?}" "${SSH_PORT:?}"
 : "${CLIENT_KEY:?}" "${HEAD_REF:?}" "${AGENT_DIR:?}"
-: "${GATE_USER:?}" "${SKILLS_DIR:?}" "${TERM_LLM_VERSION:?}" "${WORKTREE_VOLUME:?}"
+: "${GATE_USER:?}" "${SKILLS_DIR:?}" "${SANDBOX_IMAGE:?}" "${WORKTREE_VOLUME:?}"
 : "${MCP_TEMPLATE:?}"
 
 CONTAINER=quartermaster_sandbox
-IMAGE=debian:stable-slim
 HOME_DIR=/home/agent
 SSH_OPTS="-i $HOME_DIR/.ssh/gate -p $SSH_PORT -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
 
@@ -44,22 +43,13 @@ as_agent() {
     "$CONTAINER" bash -lc 'export PATH="$HOME/.local/bin:$PATH"; '"$1"
 }
 
-log "booting $IMAGE"
+log "booting $SANDBOX_IMAGE"
 docker run -d \
   --name "$CONTAINER" \
   --add-host "host.docker.internal:$BRIDGE_IP" \
   -v "$WORKTREE_VOLUME:/src" \
-  "$IMAGE" sleep infinity >/dev/null
-
-docker exec -u root "$CONTAINER" bash -c '
-  set -e
-  apt-get update -qq
-  apt-get install -y -qq --no-install-recommends \
-    git openssh-client ca-certificates curl jq >/dev/null
-  useradd -u 1000 -m -d /home/agent -s /bin/bash agent
-  install -d -o agent -g agent -m 0700 /home/agent/.ssh
-  chown agent:agent /src
-'
+  "$SANDBOX_IMAGE" >/dev/null
+docker exec -u root "$CONTAINER" chown agent:agent /src
 
 docker exec -u root -e STRIP="${PROVIDER_ENV_NAMES:-}" "$CONTAINER" bash -c '
   {
@@ -96,15 +86,6 @@ WRAP
     chmod 0755 /usr/local/bin/dev
   "
 fi
-
-# Both ship native binaries, so neither needs root or a node runtime.
-log "installing term-llm and claude"
-as_agent "curl -fsSL https://raw.githubusercontent.com/samsaffron/term-llm/${TERM_LLM_VERSION}/install.sh | sh" &
-term_llm_pid=$!
-as_agent "curl -fsSL https://claude.ai/install.sh | bash" &
-claude_pid=$!
-wait $term_llm_pid
-wait $claude_pid
 
 log "cloning the branch"
 as_agent "
