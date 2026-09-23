@@ -12,8 +12,8 @@
 // A development environment starts while a turn is under way, so it gets a row
 // of its own rather than a place in the line. Each row keeps its own clock.
 import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { request } from "./github.ts";
-import { scratch } from "./scratch.ts";
+import { request } from "../lib/github.ts";
+import { scratch } from "../lib/scratch.ts";
 
 const OPENING = "On it!";
 const MARK = {

@@ -79,7 +79,7 @@ on:
 
 jobs:
   respond:
-    # The same question `next-mention` asks, asked before anything boots.
+    # The same question `claim` asks, asked before anything boots.
     # Keep the two in step.
     if: >-
       contains(github.event.comment.body, inputs.mention) &&
@@ -107,8 +107,8 @@ jobs:
       MAX_COMMENT_AGE_HOURS: ${{ inputs.max-comment-age-hours }}
       MAX_TURNS: ${{ inputs.max-turns }}
       AGENT_TIMEOUT: ${{ inputs.agent-timeout }}
-      PROGRESS_SCRIPT: ${{ github.workspace }}/quartermaster/src/progress.ts
-      FORWARD_SCRIPT: ${{ github.workspace }}/quartermaster/src/git-forward.ts
+      PROGRESS_SCRIPT: ${{ github.workspace }}/quartermaster/bin/progress.ts
+      FORWARD_SCRIPT: ${{ github.workspace }}/quartermaster/bin/git-forward.ts
       PROVIDER: ${{ inputs.provider }}
       AGENT_DIR: ${{ github.workspace }}/quartermaster/agent
       TERM_LLM_CONFIG: ${{ inputs.term-llm-config && format('{0}/project/{1}', github.workspace, inputs.term-llm-config) || '' }}
@@ -201,7 +201,8 @@ jobs:
           fetch-depth: 1
           sparse-checkout: |
             scripts
-            src
+            bin
+            lib
             vendor
             agent
           path: quartermaster
@@ -211,7 +212,7 @@ jobs:
         id: pr
         env:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-        run: quartermaster/src/resolve.ts
+        run: quartermaster/bin/resolve.ts
       - name: Clone the work tree
         if: steps.seen.outputs.ours == 'true'
         id: worktree
@@ -267,14 +268,14 @@ jobs:
         if: steps.seen.outputs.ours == 'true'
         env:
           PROVIDER_ENV: ${{ secrets.provider-env }}
-        run: quartermaster/src/provider-env.ts "$RUNNER_TEMP/provider.env"
+        run: quartermaster/bin/provider-env.ts "$RUNNER_TEMP/provider.env"
       - name: Say we are on it
         if: steps.seen.outputs.ours == 'true'
         id: ack
         env:
           ASKED: ${{ github.event.comment.created_at }}
         run: |
-          id=$(quartermaster/src/progress.ts start \
+          id=$(quartermaster/bin/progress.ts start \
                  "Waiting for GitHub to start the workflow" \
                  "Preparing the sandbox" \
                  "Working" \
@@ -289,7 +290,7 @@ jobs:
           ENVIRONMENTS: ${{ inputs.environments }}
         run: |
           # Later than this, the bot has already said it is working on it.
-          quartermaster/src/environments.ts \
+          quartermaster/bin/environments.ts \
             "project/$ENVIRONMENTS" "$RUNNER_TEMP/environments.json"
           echo "ENVIRONMENTS_JSON=$RUNNER_TEMP/environments.json" >> "$GITHUB_ENV"
       - name: Wait for the image and the work tree
@@ -301,12 +302,12 @@ jobs:
         if: steps.seen.outputs.ours == 'true'
         run: |
           quartermaster/scripts/sandbox-up
-          quartermaster/src/converse.ts first
+          quartermaster/bin/converse.ts first
       - name: Answer anything that follows
         if: steps.seen.outputs.ours == 'true'
-        run: quartermaster/src/converse.ts followups
+        run: quartermaster/bin/converse.ts followups
       - name: Say the run ended early
         if: (failure() || cancelled()) && steps.seen.outputs.ours == 'true'
         run: |
-          quartermaster/src/progress.ts stopped \
+          quartermaster/bin/progress.ts stopped \
             "${{ failure() && 'The run failed.' || 'The run stopped before it could answer.' }} [View the log]($RUN_URL)."

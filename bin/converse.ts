@@ -4,12 +4,12 @@
 import { spawn, spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
-import { load } from "./credentials.ts";
-import { render, waiting } from "./mentions.ts";
-import { claim } from "./next-mention.ts";
-import { publish } from "./post.ts";
-import { again, first, type Situation } from "./prompt.ts";
-import { thread } from "./thread.ts";
+import { load } from "../lib/credentials.ts";
+import { render, waiting } from "../lib/mentions.ts";
+import { claim } from "../lib/claim.ts";
+import { publish } from "../lib/post.ts";
+import { again, first, type Situation } from "../lib/prompt.ts";
+import { thread } from "../lib/thread.ts";
 
 const temp = process.env.RUNNER_TEMP!;
 const sandbox = JSON.parse(readFileSync(join(temp, "sandbox.json"), "utf8")) as {

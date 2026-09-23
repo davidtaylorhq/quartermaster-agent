@@ -1,7 +1,7 @@
 #!/usr/bin/env -S node --experimental-strip-types --no-warnings=ExperimentalWarning
 // Work out what the agent is looking at, and whether it may push to it.
 import { appendFileSync } from "node:fs";
-import { request } from "./github.ts";
+import { request } from "../lib/github.ts";
 
 const repo = process.env.GITHUB_REPOSITORY!;
 const issue = process.env.ISSUE_NUMBER!;

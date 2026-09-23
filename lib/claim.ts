@@ -1,4 +1,3 @@
-#!/usr/bin/env -S node --experimental-strip-types --no-warnings=ExperimentalWarning
 // Take the mentions nobody has answered yet. Reacting is what claims one, so
 // two runs cannot answer the same comment.
 import { writeFileSync } from "node:fs";

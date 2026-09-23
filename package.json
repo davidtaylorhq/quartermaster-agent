@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "check": "tsc --noEmit",
-    "test": "node --test --experimental-strip-types --no-warnings=ExperimentalWarning 'src/*.test.ts'"
+    "test": "node --test --experimental-strip-types --no-warnings=ExperimentalWarning 'bin/*.test.ts' 'lib/*.test.ts'"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
