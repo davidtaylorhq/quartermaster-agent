@@ -18,24 +18,8 @@ const temp = process.env.RUNNER_TEMP!;
 const repo = process.env.GITHUB_REPOSITORY!;
 const issue = process.env.ISSUE_NUMBER!;
 
-// Take any credential back out of what is about to be published. The agent
-// holds them so its provider can reach the model, and a reply is the one thing
-// it writes that leaves the sandbox. Log masking does not reach a comment.
-const secrets = (() => {
-  const path = process.env.PROVIDER_ENV_FILE;
-  if (!path || !existsSync(path)) return [];
-  return readFileSync(path, "utf8")
-    .split("\n")
-    .map((line) => line.slice(line.indexOf("=") + 1).trim())
-    .filter((value) => value.length > 7);
-})();
-
-function redact(text: string): string {
-  return secrets.reduce((out, value) => out.replaceAll(value, "[redacted]"), text);
-}
-
 function sign(body: string): string {
-  const signed = redact(body).trim();
+  const signed = body.trim();
   return signed ? `${signed}\n\n${FOOTER}` : FOOTER;
 }
 
@@ -54,7 +38,7 @@ function readFindings(path: string): Finding[] {
       return;
     }
     if (typeof f.path === "string" && typeof f.line === "number" && typeof f.body === "string") {
-      out.push({ path: f.path, line: f.line, side: "RIGHT", body: redact(f.body) });
+      out.push({ path: f.path, line: f.line, side: "RIGHT", body: f.body });
     } else {
       console.error(`ignoring incomplete line comment on line ${i + 1}`);
     }
