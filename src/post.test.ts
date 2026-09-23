@@ -69,4 +69,17 @@ test("line comments on an issue go in the reply, not to the reviews endpoint", a
 
   assert.equal(sent.length, 1);
   assert.match(sent[0]!.path, /\/issues\/7\/comments$/);
+  const body = JSON.parse(sent[0]!.body).body;
+  assert.match(body, /the answer/);
+  assert.match(body, /a\.rb/, "the point is kept, not dropped for want of a diff");
+});
+
+test("a findings line of null is skipped, not thrown over", async () => {
+  writeFileSync(join(temp, "findings.jsonl"), 'null\n{"path":"a.rb","line":1,"body":"a point"}\n');
+
+  await publish();
+
+  assert.equal(sent.length, 1);
+  assert.match(sent[0]!.path, /\/pulls\/7\/reviews$/);
+  assert.equal(JSON.parse(sent[0]!.body).comments.length, 1);
 });

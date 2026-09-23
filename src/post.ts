@@ -24,14 +24,14 @@ function readFindings(path: string): Finding[] {
   readFileSync(path, "utf8").split("\n").forEach((raw, i) => {
     const line = raw.trim();
     if (!line) return;
-    let f: Record<string, unknown>;
+    let f: Record<string, unknown> | null;
     try {
       f = JSON.parse(line);
     } catch {
       console.error(`ignoring unreadable line comment on line ${i + 1}`);
       return;
     }
-    if (typeof f.path === "string" && typeof f.line === "number" && typeof f.body === "string") {
+    if (f !== null && typeof f.path === "string" && typeof f.line === "number" && typeof f.body === "string") {
       out.push({ path: f.path, line: f.line, side: "RIGHT", body: f.body });
     } else {
       console.error(`ignoring incomplete line comment on line ${i + 1}`);
@@ -49,11 +49,10 @@ export async function publish(): Promise<void> {
   const reply = ((JSON.parse(readFileSync(finish, "utf8")).reply as string) ?? "").trim();
 
   const findingsFile = join(temp, "findings.jsonl");
-  const comments = process.env.IS_PULL_REQUEST === "yes" && existsSync(findingsFile)
-    ? readFindings(findingsFile)
-    : [];
+  const comments = existsSync(findingsFile) ? readFindings(findingsFile) : [];
 
-  if (comments.length > 0) {
+  // Only a pull request has a diff to hang them on.
+  if (comments.length > 0 && process.env.IS_PULL_REQUEST === "yes") {
     // One review, so the author gets one notification rather than one per point.
     console.error(`posting ${comments.length} line comment(s)`);
     try {
@@ -66,17 +65,16 @@ export async function publish(): Promise<void> {
       return;
     } catch (error) {
       // GitHub takes a review whole or not at all, and one line outside the
-      // diff is enough to lose it. The answer is worth more than the anchors.
-      console.error(`the review was refused, so its points go in the reply: ${error}`);
-      return comment(repo, issue, [reply, ...comments.map(asText)].join("\n\n"));
+      // diff loses the reply with it.
+      console.error(`the review was refused, so the reply carries its points: ${error}`);
     }
   }
 
-  if (!reply) {
+  if (!reply && comments.length === 0) {
     console.error("the agent finished with nothing to say");
     return;
   }
-  await comment(repo, issue, reply);
+  await comment(repo, issue, [reply, ...comments.map(asText)].filter(Boolean).join("\n\n"));
 }
 
 function asText(f: Finding): string {

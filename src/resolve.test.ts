@@ -1,35 +1,93 @@
-import { test } from "node:test";
+import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
+import { createServer, type Server } from "node:http";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-function resolve(env: NodeJS.ProcessEnv) {
+let api: Server;
+let pull: unknown;
+
+before(async () => {
+  api = createServer((_req, res) => {
+    res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(pull));
+  });
+  await new Promise<void>((done) => api.listen(0, "127.0.0.1", done));
+});
+
+after(() => api?.close());
+
+async function resolve(env: NodeJS.ProcessEnv) {
   const dir = mkdtempSync(join(tmpdir(), "resolve-"));
   const out = join(dir, "out");
+  const exported = join(dir, "env");
   writeFileSync(out, "");
-  const run = spawnSync(join(import.meta.dirname, "resolve.ts"), [], {
-    encoding: "utf8",
-    env: { ...process.env, GITHUB_OUTPUT: out, ...env },
+  writeFileSync(exported, "");
+
+  // Async: the stub API answers from this process's own event loop.
+  const child = spawn(join(import.meta.dirname, "resolve.ts"), [], {
+    env: {
+      ...process.env,
+      GITHUB_OUTPUT: out,
+      GITHUB_ENV: exported,
+      GITHUB_API_URL: `http://127.0.0.1:${(api.address() as { port: number }).port}`,
+      ...env,
+    },
   });
-  const wrote = Object.fromEntries(
-    readFileSync(out, "utf8").split("\n").filter(Boolean).map((l) => {
-      const at = l.indexOf("=");
-      return [l.slice(0, at), l.slice(at + 1)];
-    }),
-  );
+  let stderr = "";
+  child.stderr.on("data", (c) => (stderr += c));
+  child.stdout.resume();
+  const status = await new Promise<number | null>((done) => child.on("close", done));
+
+  const read = (f: string) =>
+    Object.fromEntries(
+      readFileSync(f, "utf8").split("\n").filter(Boolean).map((l) => {
+        const at = l.indexOf("=");
+        return [l.slice(0, at), l.slice(at + 1)];
+      }),
+    );
+  const wrote = read(out);
+  const exportedEnv = read(exported);
   rmSync(dir, { recursive: true, force: true });
-  return { ...run, wrote };
+
+  assert.equal(status, 0, `resolve exited ${status}: ${stderr}`);
+  return { wrote, exported: exportedEnv };
 }
 
-test("an issue reads the default branch and cannot push", () => {
-  const { wrote } = resolve({
-    IS_PULL_REQUEST: "no", DEFAULT_BRANCH: "main",
-    GITHUB_REPOSITORY: "acme/thing", ISSUE_NUMBER: "7",
-  });
+const where = { GITHUB_REPOSITORY: "acme/thing", ISSUE_NUMBER: "7", DEFAULT_BRANCH: "main" };
+
+test("an issue reads the default branch and cannot push", async () => {
+  const { wrote } = await resolve({ ...where, IS_PULL_REQUEST: "no" });
   assert.equal(wrote.ref, "refs/heads/main");
   assert.equal(wrote.head_ref, "main");
   assert.equal(wrote.can_push, "false");
   assert.match(wrote.reason!, /not a pull request/);
+});
+
+test("a pull request in this repository is fetched by its own ref", async () => {
+  pull = { head: { ref: "a-branch", repo: { full_name: "acme/thing" } } };
+  const { wrote, exported } = await resolve({ ...where, IS_PULL_REQUEST: "yes" });
+  assert.equal(wrote.ref, "refs/pull/7/head");
+  assert.equal(wrote.head_ref, "a-branch");
+  assert.equal(wrote.can_push, "true");
+  assert.equal(exported.HEAD_REF, "a-branch");
+});
+
+// The base repository has no such branch, so only the pull request's own ref
+// finds the code. A fork branch named `main` would otherwise check out ours.
+test("a fork's pull request is fetched by ref and cannot push", async () => {
+  pull = { head: { ref: "main", repo: { full_name: "someone/fork" } } };
+  const { wrote } = await resolve({ ...where, IS_PULL_REQUEST: "yes" });
+  assert.equal(wrote.ref, "refs/pull/7/head", "never the branch name");
+  assert.equal(wrote.head_ref, "main");
+  assert.equal(wrote.can_push, "false");
+  assert.match(wrote.reason!, /fork/);
+});
+
+test("a pull request onto the default branch cannot push", async () => {
+  pull = { head: { ref: "main", repo: { full_name: "acme/thing" } } };
+  const { wrote } = await resolve({ ...where, IS_PULL_REQUEST: "yes" });
+  assert.equal(wrote.can_push, "false");
+  assert.match(wrote.reason!, /the branch is main/);
 });
