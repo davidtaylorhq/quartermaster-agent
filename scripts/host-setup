@@ -87,7 +87,7 @@ while read -r _old new ref; do
   auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
   if git -c http.extraheader="AUTHORIZATION: basic $auth" \
        push --force-with-lease="refs/heads/$HEAD_REF:$expected" \
-       "${RELAY_REMOTE:-https://github.com/$GITHUB_REPOSITORY.git}" \
+       "https://github.com/$GITHUB_REPOSITORY.git" \
        "$new:refs/heads/$HEAD_REF" 2>&1
   then
     printf '%s' "$new" > "$PUSHED"
