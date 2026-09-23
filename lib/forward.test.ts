@@ -1,7 +1,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { createServer, type Server } from "node:http";
-import { handler } from "./git-forward.ts";
+import { handler } from "./forward.ts";
 
 const REPO = "owner/project";
 const AUTH = "Basic c2VjcmV0";
