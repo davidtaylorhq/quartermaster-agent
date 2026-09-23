@@ -7,7 +7,14 @@
     "noUncheckedIndexedAccess": true,
     "noEmit": true,
     "skipLibCheck": true,
-    "types": ["node"]
+    "types": [
+      "node"
+    ],
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true
   },
-  "include": ["src", "build.mjs"]
+  "include": [
+    "src",
+    "build.mjs"
+  ]
 }
