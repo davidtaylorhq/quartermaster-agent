@@ -1,0 +1,20 @@
+name: Probe
+on: workflow_dispatch
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Slow background thing
+        id: slow
+        background: true
+        run: sleep 8; echo "slow done"
+
+      - name: Quick foreground thing
+        run: echo "foreground ran at $(date +%s)"
+
+      - name: Wait for the slow thing
+        wait: [slow]
+
+      - name: After
+        run: echo "after ran at $(date +%s)"
