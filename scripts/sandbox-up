@@ -15,17 +15,6 @@ SSH_OPTS="-i $HOME_DIR/.ssh/gate -p $SSH_PORT -o StrictHostKeyChecking=no -o Use
 
 log() { echo "[sandbox] $*" >&2; }
 
-# A provider that shells out reads these from term-llm's environment. Every
-# shell tool call starts with $SHELL, so ours drops them again.
-creds=()
-if [ -n "${PROVIDER_ENV_FILE:-}" ] && [ -s "$PROVIDER_ENV_FILE" ]; then
-  set -a
-  # shellcheck disable=SC1090
-  . "$PROVIDER_ENV_FILE"
-  set +a
-  for name in $PROVIDER_ENV_NAMES; do creds+=(-e "$name"); done
-fi
-
 dump_host_log() {
   echo "[sandbox] --- sshd log ---" >&2
   sudo cat "$RUNNER_TEMP/sshd.log" 2>/dev/null >&2 || true
@@ -38,7 +27,6 @@ as_agent() {
     -e GIT_SSH_COMMAND="ssh $SSH_OPTS" \
     -e HEAD_REF="$HEAD_REF" \
     -e SHELL=/usr/local/bin/qm-shell \
-    "${creds[@]}" \
     "$CONTAINER" bash -lc 'export PATH="$HOME/.local/bin:$PATH"; '"$1"
 }
 

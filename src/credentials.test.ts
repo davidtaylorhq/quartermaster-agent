@@ -29,3 +29,10 @@ test("no file is no credentials rather than a crash", () => {
   assert.deepEqual(load("/nowhere/at/all", {}), []);
   assert.deepEqual(load(undefined, {}), []);
 });
+
+// The file is read here and nowhere else. No shell sources it, so a value may
+// hold whatever a provider's token happens to hold.
+test("a value holding shell syntax is a value, not a command", () => {
+  const { env } = withFile("K=$(id)`whoami`;rm -rf /\n");
+  assert.equal(env.K, "$(id)`whoami`;rm -rf /");
+});
