@@ -40,6 +40,8 @@ Write the commit message the way the repository writes them.
 
 `git push origin HEAD` then sends your commits to the pull request branch. Only that branch is accepted; a push anywhere else is refused. Push once you have run whatever covers the change and it passed. Do not push work you could not verify, unless the person asked you to; commit it, leave it unpushed, and say why.
 
+`git fetch` reaches this repository and nothing else. Both ends go through the runner, which holds the credentials; there are none in here to find.
+
 You are in a small box with git and little else. Anything needing a language runtime or a database goes to a development environment that starts the first time you ask for it, and the commands that need it go there on their own. What this project's are is below, if it has any.
 
 The first such command takes a few minutes while that environment comes up; afterwards they are quick. Run what covers your change, not everything, and do not start it at all if you have nothing to run.
@@ -48,6 +50,13 @@ A change you have not run is a guess. Say so plainly in your reply, rather than 
 
 ## Reading
 
-`pull_request_read` gives you the diff, the files and the existing review comments. Take the diff from there: the clone is shallow, so `git diff` against a base branch will not work.
-
 The clone is at the head commit, so `read_file` and `grep` are the fastest way to read the code around a change.
+
+It is one commit deep. `git log` shows that commit and nothing before it, `git blame` says only that it exists, and a branch name like `main` means nothing here. Everything else has to be fetched.
+
+`pull_request_read` gives you the diff, the files and the existing review comments, and it names the commit the branch started from. Fetching that commit is what makes git useful on the change:
+
+    git fetch --depth 1 origin <base sha>
+    git diff <base sha> HEAD
+
+A fetch costs a couple of seconds, so ask for the commits you want rather than the history around them. `pull_request_read` is quicker when the diff is all you are after.

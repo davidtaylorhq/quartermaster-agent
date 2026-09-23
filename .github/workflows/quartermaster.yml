@@ -273,7 +273,7 @@ jobs:
           ASKED: ${{ github.event.comment.created_at }}
         run: |
           id=$(quartermaster/src/progress.ts start \
-                 "Waiting for the workflow to start" \
+                 "Waiting for GitHub to start the workflow" \
                  "Preparing the sandbox" \
                  "Working" \
                  "Replying" \
