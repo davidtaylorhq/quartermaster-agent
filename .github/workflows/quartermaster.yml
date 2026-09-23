@@ -102,6 +102,24 @@ jobs:
       PROGRESS_SCRIPT: ${{ github.workspace }}/quartermaster/src/progress.ts
 
     steps:
+      - name: Say we have seen it
+        id: seen
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ASSOCIATION: ${{ github.event.comment.author_association }}
+          COMMENT: ${{ github.event.comment.id }}
+        run: |
+          # Before anything else is fetched: whoever asked should know the
+          # mention landed, and this reaction is also the claim on it.
+          case ",${{ inputs.trusted-associations }}," in
+            *",$ASSOCIATION,"*)
+              gh api --method POST \
+                "/repos/${{ github.repository }}/issues/comments/$COMMENT/reactions" \
+                -f content=eyes --silent
+              echo "claimed=$COMMENT" >> "$GITHUB_OUTPUT"
+              ;;
+          esac
+
       - name: Work out where this workflow came from
         id: self
         env:
@@ -172,17 +190,18 @@ jobs:
             "project/$ENVIRONMENTS" "$RUNNER_TEMP/environments.json"
           echo "ENVIRONMENTS_JSON=$RUNNER_TEMP/environments.json" >> "$GITHUB_ENV"
 
-      - name: Take the oldest mention nobody has
+      - name: Reading pending requests
         id: mine
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           MENTION_FILE: ${{ runner.temp }}/mention.json
+          CLAIMED_ID: ${{ steps.seen.outputs.claimed }}
         run: |
-          # Not necessarily the comment that started this run: only one run is
-          # queued per issue, so a comment displaced from that queue has
-          # nothing else looking for it.
+          # Not only the comment that started this run: one run is queued per
+          # issue, so a comment displaced from that queue has nothing else
+          # looking for it.
           if quartermaster/src/next-mention.ts; then
             echo "mine=true" >> "$GITHUB_OUTPUT"
           else

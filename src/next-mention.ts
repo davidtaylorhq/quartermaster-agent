@@ -17,6 +17,10 @@ const issue = process.env.ISSUE_NUMBER!;
 const out = process.env.MENTION_FILE!;
 
 async function claimed(comment: Comment): Promise<boolean> {
+  // The workflow reacts to the comment that started the run before anything
+  // else, so that one is ours however it looks.
+  if (String(comment.id) === process.env.CLAIMED_ID) return false;
+
   // The count arrives with the comment; only a non-zero one needs a lookup.
   if (!comment.reactions?.eyes) return false;
   const reactions = await paginate<{ content: string; user: { login: string } }>(
