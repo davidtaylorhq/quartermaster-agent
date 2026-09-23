@@ -4,7 +4,7 @@
 //     progress start LABEL...     the list, with the first step under way
 //     progress next [LABEL...]    finish this step, do these next, start the next
 //     progress done               finish this step; nothing follows
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { request } from "./github.ts";
 import { scratch } from "./scratch.ts";
 
@@ -16,6 +16,11 @@ const MARK = {
 } as const;
 
 const STATE = process.env.PROGRESS_FILE ?? scratch("progress.json");
+
+function save(state: unknown): void {
+  writeFileSync(`${STATE}.new`, JSON.stringify(state));
+  renameSync(`${STATE}.new`, STATE);
+}
 
 type State = { labels: string[]; at: number; since: number; took: number[]; comment?: string };
 
@@ -51,7 +56,7 @@ async function publish(next: Omit<State, "comment">): Promise<string | undefined
     : {};
   const comment = process.env.COMMENT_ID || saved.comment;
   const { labels, at, took } = next;
-  writeFileSync(STATE, JSON.stringify({ ...next, comment }));
+  save({ ...next, comment });
 
   const repo = process.env.GITHUB_REPOSITORY;
   if (!repo) return comment;
@@ -69,7 +74,7 @@ async function publish(next: Omit<State, "comment">): Promise<string | undefined
   }
 
   const id = comment ?? String(((await response.json()) as { id: number }).id);
-  writeFileSync(STATE, JSON.stringify({ ...next, comment: id }));
+  save({ ...next, comment: id });
   return id;
 }
 

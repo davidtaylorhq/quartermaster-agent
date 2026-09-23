@@ -22,7 +22,8 @@ const sandbox = JSON.parse(readFileSync(join(temp, "sandbox.json"), "utf8")) as 
 const credentials = load(process.env.PROVIDER_ENV_FILE, process.env);
 
 function progress(...args: string[]) {
-  spawnSync(process.env.PROGRESS_SCRIPT!, args, { stdio: "inherit" });
+  const lock = join(temp, "progress.lock");
+  spawnSync("flock", [lock, process.env.PROGRESS_SCRIPT!, ...args], { stdio: "inherit" });
 }
 
 const opening = process.argv[2] !== "followups";

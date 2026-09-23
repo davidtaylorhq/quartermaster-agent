@@ -14,7 +14,7 @@ CONTAINER="quartermaster_dev_$NAME"
 note() { echo "[$NAME] $*" >> "$LOG"; }
 fatal() { note "$*"; echo "$BOT_NAME: $NAME: $*" >&2; exit 1; }
 progress() {
-  if ! "$PROGRESS" "$@" >>"$LOG" 2>&1; then
+  if ! flock "${RUNNER_TEMP:-/tmp}/progress.lock" "$PROGRESS" "$@" >>"$LOG" 2>&1; then
     echo "[$NAME] progress $* failed" >> "$LOG"
   fi
 }
