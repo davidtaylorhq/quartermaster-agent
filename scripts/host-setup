@@ -12,6 +12,7 @@ STATE="$HOME/.quartermaster"
 RELAY="$RUNNER_TEMP/relay.git"
 PUSHED="$RUNNER_TEMP/relay.pushed"
 SSH_PORT=2222
+FORWARD_PORT=2223
 MCP_IMAGE=ghcr.io/github/github-mcp-server:v1.12.2
 WORKTREE_VOLUME=quartermaster-worktree
 
@@ -105,6 +106,12 @@ install -m 0755 "$(dirname "$0")/dev-boot"   "$STATE/dev-boot"
 install -m 0644 "$ENVIRONMENTS_JSON" "$STATE/environments.json"
 
 # --------------------------------------------------------------- the ssh gate
+# ------------------------------------------------------- the read-only path
+# The sandbox has no credential, so its clone comes through here. Only
+# upload-pack is forwarded; the branch is written through the gate below.
+step "forwarding reads to GitHub on $bridge:$FORWARD_PORT"
+nohup "$FORWARD_SCRIPT" "$bridge" "$FORWARD_PORT" > "$RUNNER_TEMP/forward.log" 2>&1 &
+
 step "generating keys"
 ssh-keygen -q -t ed25519 -N '' -f "$STATE/hostkey"
 ssh-keygen -q -t ed25519 -N '' -f "$STATE/clientkey" -C "$BOT_NAME"
@@ -156,6 +163,7 @@ ss -tln | grep ":$SSH_PORT" >&2 || echo "[host] nothing on $SSH_PORT" >&2
 {
   echo "BRIDGE_IP=$bridge"
   echo "SSH_PORT=$SSH_PORT"
+  echo "FORWARD_PORT=$FORWARD_PORT"
   echo "CLIENT_KEY=$STATE/clientkey"
   echo "GATE_USER=$(id -un)"
   echo "WORKTREE_VOLUME=$WORKTREE_VOLUME"

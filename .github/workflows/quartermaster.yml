@@ -103,6 +103,7 @@ jobs:
       MAX_TURNS: ${{ inputs.max-turns }}
       AGENT_TIMEOUT: ${{ inputs.agent-timeout }}
       PROGRESS_SCRIPT: ${{ github.workspace }}/quartermaster/src/progress.ts
+      FORWARD_SCRIPT: ${{ github.workspace }}/quartermaster/src/git-forward.ts
       PROVIDER: ${{ inputs.provider }}
       AGENT_DIR: ${{ github.workspace }}/quartermaster/agent
       SKILLS_DIR: ${{ github.workspace }}/quartermaster/agent/skills
@@ -206,13 +207,14 @@ jobs:
         env:
           HEAD_REF: ${{ steps.pr.outputs.head_ref }}
         run: |
-          # Only the sandbox ever reads a work tree, and it clones one for
-          # itself, so nothing here writes the files out.
+          # The relay exists to police the push, not to serve the files: the
+          # sandbox clones from GitHub itself. Commits and trees are all the
+          # branch check and the lease need, and they arrive in a moment.
           auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
           git init -q --bare "$RUNNER_TEMP/relay.git"
           git --git-dir="$RUNNER_TEMP/relay.git" \
             -c http.extraheader="AUTHORIZATION: basic $auth" \
-            fetch -q --depth 1 "${{ github.server_url }}/${{ github.repository }}.git" \
+            fetch -q --depth 1 --filter=blob:none "${{ github.server_url }}/${{ github.repository }}.git" \
             "+${{ steps.pr.outputs.ref }}:refs/heads/$HEAD_REF"
       - name: Check out the project's configuration
         if: steps.seen.outputs.ours == 'true'

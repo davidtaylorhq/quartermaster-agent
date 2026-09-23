@@ -8,6 +8,7 @@ set -Eeuo pipefail
 : "${RUNNER_TEMP:?}" "${BRIDGE_IP:?}" "${SSH_PORT:?}"
 : "${CLIENT_KEY:?}" "${HEAD_REF:?}" "${AGENT_DIR:?}"
 : "${GATE_USER:?}" "${SKILLS_DIR:?}" "${SANDBOX_IMAGE:?}" "${WORKTREE_VOLUME:?}"
+: "${FORWARD_PORT:?}" "${GITHUB_REPOSITORY:?}"
 : "${MCP_TEMPLATE:?}"
 
 CONTAINER=quartermaster_sandbox
@@ -87,11 +88,16 @@ WRAP
   "
 fi
 
+# Reads come from GitHub through the forwarder, which holds the credential the
+# sandbox must not. Writes go to the gate, where the relay's hooks decide what
+# reaches the branch.
 log "cloning the branch"
 as_agent "
   set -e
-  git -c checkout.workers=0 clone -q --depth 1 --branch "\$HEAD_REF" ssh://$GATE_USER@host.docker.internal/relay.git /src
+  git -c checkout.workers=0 clone -q --depth 1 --branch "\$HEAD_REF" \
+    http://host.docker.internal:$FORWARD_PORT/$GITHUB_REPOSITORY.git /src
   cd /src
+  git remote set-url --push origin ssh://$GATE_USER@host.docker.internal/relay.git
   git config user.name  "$BOT_NAME"
   git config user.email "$BOT_NAME@users.noreply.github.com"
 "
