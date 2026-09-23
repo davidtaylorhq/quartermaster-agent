@@ -70,6 +70,7 @@ const where = {
 
 test("an issue reads the default branch and cannot push", async () => {
   const { wrote } = await resolve({ ...where, IS_PULL_REQUEST: "no" });
+  assert.equal(wrote.base_sha, "", "an issue has nothing to diff against");
   assert.equal(wrote.ref, "refs/heads/main");
   assert.equal(wrote.head_ref, "main");
   assert.equal(wrote.can_push, "false");
@@ -77,7 +78,10 @@ test("an issue reads the default branch and cannot push", async () => {
 });
 
 test("a pull request in this repository is fetched by its own ref", async () => {
-  pull = { head: { ref: "a-branch", repo: { full_name: "acme/thing" } } };
+  pull = {
+    head: { ref: "a-branch", repo: { full_name: "acme/thing" } },
+    base: { sha: "base1" },
+  };
   const { wrote, exported } = await resolve({
     ...where,
     IS_PULL_REQUEST: "yes",
@@ -86,21 +90,37 @@ test("a pull request in this repository is fetched by its own ref", async () => 
   assert.equal(wrote.head_ref, "a-branch");
   assert.equal(wrote.can_push, "true");
   assert.equal(exported.HEAD_REF, "a-branch");
+  assert.equal(
+    wrote.base_sha,
+    "base1",
+    "the run fetches this so the agent can diff against it"
+  );
 });
 
 // The base repository has no such branch, so only the pull request's own ref
 // finds the code. A fork branch named `main` would otherwise check out ours.
 test("a fork's pull request is fetched by ref and cannot push", async () => {
-  pull = { head: { ref: "main", repo: { full_name: "someone/fork" } } };
+  pull = {
+    head: { ref: "main", repo: { full_name: "someone/fork" } },
+    base: { sha: "base2" },
+  };
   const { wrote } = await resolve({ ...where, IS_PULL_REQUEST: "yes" });
   assert.equal(wrote.ref, "refs/pull/7/head", "never the branch name");
   assert.equal(wrote.head_ref, "main");
   assert.equal(wrote.can_push, "false");
   assert.match(wrote.reason!, /fork/);
+  assert.equal(
+    wrote.base_sha,
+    "base2",
+    "a fork's diff is worth as much as anyone's"
+  );
 });
 
 test("a pull request onto the default branch cannot push", async () => {
-  pull = { head: { ref: "main", repo: { full_name: "acme/thing" } } };
+  pull = {
+    head: { ref: "main", repo: { full_name: "acme/thing" } },
+    base: { sha: "base3" },
+  };
   const { wrote } = await resolve({ ...where, IS_PULL_REQUEST: "yes" });
   assert.equal(wrote.can_push, "false");
   assert.match(wrote.reason!, /the branch is main/);

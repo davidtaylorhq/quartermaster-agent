@@ -52,11 +52,13 @@ If you could not run anything to check your change, say so in your reply.
 
 The clone is at the head commit, so `read_file` and `grep` are the fastest way to read the code around a change.
 
-It is one commit deep. `git log` shows that commit and nothing before it, `git blame` says only that it exists, and a branch name like `main` does not resolve. Fetch what you need.
+On a pull request the commit it branched from is here too, so the change itself needs no fetching. `pull_request_read` names that commit:
 
-`pull_request_read` gives you the diff, the files and the existing review comments, and it names the commit the branch started from. Fetching that commit is what makes git useful on the change:
-
-    git fetch --depth 1 origin <base sha>
     git diff <base sha> HEAD
 
-A fetch costs a couple of seconds, so ask for the commits you want rather than the history around them. `pull_request_read` is quicker when the diff is all you are after.
+Nothing else is here. `git log` shows the head commit and nothing before it, `git blame` says only that it exists, and a branch name like `main` does not resolve. Fetch what you want first, and only what you want:
+
+    git fetch --depth 1 origin main
+    git fetch --depth 50 origin $(git rev-parse HEAD)
+
+`origin` reaches this repository and nothing else. A fetch costs a couple of seconds, so ask for the commits you need rather than the history around them, and remember `pull_request_read` already has the diff, the files and the existing review comments.

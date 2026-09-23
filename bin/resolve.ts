@@ -10,6 +10,7 @@ const defaultBranch = process.env.DEFAULT_BRANCH!;
 type Resolved = {
   ref: string;
   head_ref: string;
+  base_sha: string;
   can_push: boolean;
   reason: string;
 };
@@ -20,6 +21,7 @@ async function resolve(): Promise<Resolved> {
     return {
       ref: `refs/heads/${defaultBranch}`,
       head_ref: defaultBranch,
+      base_sha: "",
       can_push: false,
       reason: "this is an issue, not a pull request",
     };
@@ -29,9 +31,11 @@ async function resolve(): Promise<Resolved> {
     await request("GET", `/repos/${repo}/pulls/${issue}`)
   ).json()) as {
     head: { ref: string; repo: { full_name: string } | null };
+    base: { sha: string };
   };
   const ref = `refs/pull/${issue}/head`;
   const head_ref = pr.head.ref;
+  const base_sha = pr.base.sha;
 
   // The job token cannot write to a fork, and the credential that could is
   // broader than this job should ever hold.
@@ -39,6 +43,7 @@ async function resolve(): Promise<Resolved> {
     return {
       ref,
       head_ref,
+      base_sha,
       can_push: false,
       reason: "the branch lives in a fork, which this job cannot push to",
     };
@@ -47,11 +52,12 @@ async function resolve(): Promise<Resolved> {
     return {
       ref,
       head_ref,
+      base_sha,
       can_push: false,
       reason: `the branch is ${defaultBranch}`,
     };
   }
-  return { ref, head_ref, can_push: true, reason: "" };
+  return { ref, head_ref, base_sha, can_push: true, reason: "" };
 }
 
 const out = await resolve();

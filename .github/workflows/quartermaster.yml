@@ -108,9 +108,9 @@ jobs:
       MAX_TURNS: ${{ inputs.max-turns }}
       AGENT_TIMEOUT: ${{ inputs.agent-timeout }}
       PROGRESS_SCRIPT: ${{ github.workspace }}/quartermaster/bin/progress.ts
-      FORWARD_SCRIPT: ${{ github.workspace }}/quartermaster/bin/git-forward.ts
       PROVIDER: ${{ inputs.provider }}
       AGENT_DIR: ${{ github.workspace }}/quartermaster/agent
+      FORWARD_SCRIPT: ${{ github.workspace }}/quartermaster/bin/git-forward.ts
       TERM_LLM_CONFIG: ${{ inputs.term-llm-config && format('{0}/project/{1}', github.workspace, inputs.term-llm-config) || '' }}
       GITHUB_TOOLSETS: pull_requests,issues
       HAS_APP: ${{ secrets.app-id != '' }}
@@ -219,6 +219,7 @@ jobs:
         env:
           HEAD_REF: ${{ steps.pr.outputs.head_ref }}
           REF: ${{ steps.pr.outputs.ref }}
+          BASE_SHA: ${{ steps.pr.outputs.base_sha }}
         run: |
           # The runner has the credential, so it fetches while the image pulls.
           # `-c` stays on this command; `--config` would land in .git/config.
@@ -233,6 +234,14 @@ jobs:
           git -C "$tree" -c http.extraheader="AUTHORIZATION: basic $auth" \
             fetch -q --depth 1 origin "+$REF:refs/heads/$HEAD_REF"
           git -C "$tree" -c checkout.workers=0 checkout -q "$HEAD_REF"
+
+          # What the pull request branched from, so the agent can diff against
+          # it. Fetched here because the sandbox has no credential, and before
+          # it exists, so nothing of the agent's runs while the runner does.
+          if [ -n "$BASE_SHA" ]; then
+            git -C "$tree" -c http.extraheader="AUTHORIZATION: basic $auth" \
+              fetch -q --depth 1 origin "$BASE_SHA" || echo "could not fetch $BASE_SHA"
+          fi
 
           # The relay leases against the commit the agent started from.
           # Copying is what makes them the same commit.
