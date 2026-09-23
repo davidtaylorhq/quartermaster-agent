@@ -103,22 +103,11 @@ jobs:
 
     steps:
       - name: Say we have seen it
-        id: seen
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          ASSOCIATION: ${{ github.event.comment.author_association }}
-          COMMENT: ${{ github.event.comment.id }}
-        run: |
-          # Before anything else is fetched: whoever asked should know the
-          # mention landed, and this reaction is also the claim on it.
-          case ",${{ inputs.trusted-associations }}," in
-            *",$ASSOCIATION,"*)
-              gh api --method POST \
-                "/repos/${{ github.repository }}/issues/comments/$COMMENT/reactions" \
-                -f content=eyes --silent
-              echo "claimed=$COMMENT" >> "$GITHUB_OUTPUT"
-              ;;
-          esac
+        run: gh api --method POST --silent
+          "/repos/${{ github.repository }}/issues/comments/${{ github.event.comment.id }}/reactions"
+          -f content=eyes
 
       - name: Work out where this workflow came from
         id: self
@@ -201,7 +190,7 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           MENTION_FILE: ${{ runner.temp }}/mention.json
-          CLAIMED_ID: ${{ steps.seen.outputs.claimed }}
+          CLAIMED_ID: ${{ github.event.comment.id }}
         run: |
           # Not only the comment that started this run: one run is queued per
           # issue, so a comment displaced from that queue has nothing else
