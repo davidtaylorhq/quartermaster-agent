@@ -36,7 +36,7 @@ jobs:
 |---|---|---|
 | `mention` | *required* | What people type, including the `@` |
 | `bot-name` | the mention without its `@` | Name on the agent's commits |
-| `bot-login` | `github-actions[bot]` | Login the agent's comments appear under |
+| `bot-login` | `github-actions[bot]` | Login the agent's comments appear under. A GitHub App settles this itself |
 | `provider` | unset | Passed to term-llm as `--provider` |
 | `term-llm-config` | unset | Path to a term-llm configuration of your own |
 | `environments` | `.github/quartermaster/environments.yml` | What the agent may run commands in |
@@ -48,6 +48,30 @@ jobs:
 | `term-llm-version` | pinned | |
 | `runs-on` | `ubuntu-latest` | |
 | `timeout-minutes` | `45` | |
+
+## Giving it a name of its own
+
+Out of the box the agent speaks as `github-actions[bot]`, which is Actions' own
+identity and cannot be renamed. Pass a GitHub App instead and its comments
+carry the app's name and avatar:
+
+```yaml
+secrets:
+  app-id: ${{ secrets.QUARTERMASTER_APP_ID }}
+  app-private-key: ${{ secrets.QUARTERMASTER_APP_KEY }}
+```
+
+The app needs write on issues, pull requests and contents, and it has to be
+installed on the repository. `bot-login` then settles itself from the app.
+
+This is worth more than a name. A push made with `GITHUB_TOKEN` never starts a
+workflow — GitHub stops that to keep runs from triggering themselves — so the
+agent's commits arrive on a pull request with no checks against them. An app's
+push starts them like anybody else's.
+
+One thing stays with Actions' own identity either way: the eyes the agent puts
+on a comment to claim it. That reaction only settles which run answers because
+GitHub reports it per account, so it has to be the same account every time.
 
 ## Choosing a model
 
