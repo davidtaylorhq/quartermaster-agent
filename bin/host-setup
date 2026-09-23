@@ -6,13 +6,14 @@ set -euo pipefail
 step() { echo "[host] $*" >&2; }
 
 : "${RUNNER_TEMP:?}" "${HEAD_REF:?}" "${GITHUB_REPOSITORY:?}"
-: "${GH_TOKEN:?}"
+: "${GH_TOKEN:?}" "${MODEL_ROUTES:?}"
 
 STATE="$HOME/.quartermaster"
 RELAY="$RUNNER_TEMP/relay.git"
 PUSHED="$RUNNER_TEMP/relay.pushed"
 SSH_PORT=2222
 FORWARD_PORT=2223
+MODEL_PORT=2224
 MCP_IMAGE=ghcr.io/github/github-mcp-server:v1.12.2
 WORKTREE=$RUNNER_TEMP/worktree
 
@@ -114,6 +115,13 @@ install -m 0644 "$ENVIRONMENTS_JSON" "$STATE/environments.json"
 step "forwarding reads to GitHub on $bridge:$FORWARD_PORT"
 nohup "$FORWARD_SCRIPT" "$bridge" "$FORWARD_PORT" > "$RUNNER_TEMP/forward.log" 2>&1 &
 
+# ---------------------------------------------------------------- the model
+# The sandbox is given a placeholder in place of the model credential. This
+# puts the real one back on its way out.
+step "serving the model on $bridge:$MODEL_PORT"
+nohup "$MODEL_SCRIPT" "$bridge" "$MODEL_PORT" "$MODEL_ROUTES" \
+  > "$RUNNER_TEMP/model.log" 2>&1 &
+
 # --------------------------------------------------------------- the ssh gate
 step "generating keys"
 ssh-keygen -q -t ed25519 -N '' -f "$STATE/hostkey"
@@ -165,6 +173,7 @@ ss -tln | grep ":$SSH_PORT" >&2 || echo "[host] nothing on $SSH_PORT" >&2
   echo "BRIDGE_IP=$bridge"
   echo "SSH_PORT=$SSH_PORT"
   echo "FORWARD_PORT=$FORWARD_PORT"
+  echo "MODEL_PORT=$MODEL_PORT"
   echo "CLIENT_KEY=$STATE/clientkey"
   echo "GATE_USER=$(id -un)"
   echo "WORKTREE=$WORKTREE"

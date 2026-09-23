@@ -6,7 +6,7 @@ set -Eeuo pipefail
 : "${RUNNER_TEMP:?}" "${BRIDGE_IP:?}" "${SSH_PORT:?}"
 : "${CLIENT_KEY:?}" "${AGENT_DIR:?}"
 : "${GATE_USER:?}" "${SANDBOX_IMAGE:?}" "${WORKTREE:?}"
-: "${FORWARD_PORT:?}" "${GITHUB_REPOSITORY:?}"
+: "${FORWARD_PORT:?}" "${GITHUB_REPOSITORY:?}" "${MODEL_PORT:?}"
 
 
 CONTAINER=quartermaster_sandbox
@@ -114,6 +114,14 @@ if [ -n "${TERM_LLM_CONFIG:-}" ] && [ -s "$TERM_LLM_CONFIG" ]; then
 fi
 
 docker exec -u root "$CONTAINER" chown -R agent:agent "$HOME_DIR/.config"
+
+# The sandbox holds a placeholder, so its model requests have to come back
+# past the runner for the real key to be put in.
+for slot in ${MODEL_BEHIND_PROXY:-}; do
+  log "pointing $slot at the model proxy"
+  in_sandbox "$HOME_DIR/.local/bin/term-llm" config set \
+    "providers.$slot.base_url" "http://host.docker.internal:$MODEL_PORT/$slot"
+done
 
 log "sandbox ready"
 cat > "$RUNNER_TEMP/sandbox.json" <<JSON

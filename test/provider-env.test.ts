@@ -10,15 +10,17 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
+import { PLACEHOLDER } from "../lib/inference.ts";
 
 const script = join(import.meta.dirname, "..", "bin", "provider-env.ts");
 
 function read(blob: string) {
   const dir = mkdtempSync(join(tmpdir(), "creds-"));
   const dest = join(dir, "provider.env");
+  const routes = join(dir, "routes.json");
   const ghEnv = join(dir, "github.env");
   writeFileSync(ghEnv, "");
-  const run = spawnSync(script, [dest], {
+  const run = spawnSync(script, [dest, routes], {
     encoding: "utf8",
     env: { ...process.env, PROVIDER_ENV: blob, GITHUB_ENV: ghEnv },
   });
@@ -28,6 +30,7 @@ function read(blob: string) {
     // eslint-disable-next-line no-bitwise -- the permission bits are the point
     mode: run.status === 0 ? statSync(dest).mode & 0o777 : 0,
     exported: run.status === 0 ? readFileSync(ghEnv, "utf8") : "",
+    routes: run.status === 0 ? readFileSync(routes, "utf8") : "",
   };
   rmSync(dir, { recursive: true, force: true });
   return result;
@@ -46,10 +49,7 @@ test("every value is masked before anything can echo it", () => {
 
 test("the names are logged and the values are not", () => {
   const { stdout } = read("CLAUDE_CODE_OAUTH_TOKEN=sk-secret-value\n");
-  assert.match(
-    stdout,
-    /credentials held on the runner: CLAUDE_CODE_OAUTH_TOKEN/
-  );
+  assert.match(stdout, /given to the sandbox: CLAUDE_CODE_OAUTH_TOKEN/);
   assert.doesNotMatch(
     stdout
       .split("\n")
@@ -67,6 +67,21 @@ test("only the path and the names leave in the environment", () => {
   const { exported } = read("A=a-secret-value\n");
   assert.match(exported, /PROVIDER_ENV_NAMES=A/);
   assert.doesNotMatch(exported, /a-secret-value/);
+});
+
+test("a provider the proxy can reach keeps its key here", () => {
+  const { file, routes, stdout } = read("ANTHROPIC_API_KEY=sk-ant-secret\n");
+  assert.equal(file, `ANTHROPIC_API_KEY=${PLACEHOLDER}\n`);
+  assert.deepEqual(JSON.parse(routes), {
+    anthropic: { upstream: "https://api.anthropic.com", key: "sk-ant-secret" },
+  });
+  assert.match(stdout, /reached through the proxy: anthropic/);
+});
+
+test("a provider the proxy cannot reach still goes to the sandbox", () => {
+  const { file, routes } = read("OPENAI_API_KEY=sk-openai-secret\n");
+  assert.equal(file, "OPENAI_API_KEY=sk-openai-secret\n");
+  assert.deepEqual(JSON.parse(routes), {});
 });
 
 test("carriage returns from a pasted secret are dropped", () => {

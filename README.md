@@ -106,9 +106,11 @@ term-llm also reads `op://` for 1Password, `file://`, `srv://` and `$(...)` in a
 
 They are masked before they reach a log, never written into the docker command line, and kept out of `$GITHUB_ENV`.
 
-They do reach term-llm's own environment, because a provider that shells out reads them from there. Every shell command the agent runs is stripped of them: term-llm starts each one with `$SHELL`, which is a shell of ours that drops those names first.
+A provider the runner can stand in front of never has its key in the sandbox at all. The sandbox is given a placeholder, the provider's `base_url` points back at the runner, and a proxy there puts the real key in on the way out. Anthropic works this way today.
 
-What remains is that the agent's own process holds them. Nothing checks what it writes, and there is no egress filtering, so a determined prompt injection could put them in a reply or send them somewhere. Keeping them out of the container needs a proxy on the runner, which is not built yet.
+term-llm honours `base_url` for only some of its providers, and one reached by running a command rather than over HTTP cannot be redirected at all. Those providers still get their key. It reaches term-llm's own environment, because a provider that shells out reads it from there. Every shell command the agent runs is stripped of it: term-llm starts each one with `$SHELL`, which is a shell of ours that drops those names first.
+
+What remains for those is that the agent's own process holds the key. Nothing checks what it writes, and there is no egress filtering, so a determined prompt injection could put it in a reply or send it somewhere.
 
 ## Running tests and linters
 
