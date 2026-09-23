@@ -316,6 +316,10 @@ jobs:
         run: quartermaster/bin/converse.ts followups
       - name: Say the run ended early
         if: (failure() || cancelled()) && steps.seen.outputs.ours == 'true'
+        env:
+          HOW: ${{ job.status }}
         run: |
-          quartermaster/bin/progress.ts stopped \
-            "${{ failure() && 'The run failed.' || 'The run stopped before it could answer.' }} [View the log]($RUN_URL)."
+          [ "$HOW" = failure ] \
+            && said="The run failed." \
+            || said="The run stopped before it could answer."
+          quartermaster/bin/progress.ts stopped "$said [View the log]($RUN_URL)."
