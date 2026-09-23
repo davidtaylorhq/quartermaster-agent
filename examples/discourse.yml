@@ -7,11 +7,8 @@ on:
 
 jobs:
   respond:
-    # Without this every comment in the repository starts a runner. The
-    # backport bot answers to the same name and is not this one.
-    if: |
-      contains(github.event.comment.body, '@discoursebot') &&
-      !contains(github.event.comment.body, '@discoursebot backport')
+    # The backport bot answers to the same name and is not this one.
+    if: "!contains(github.event.comment.body, '@discoursebot backport')"
     uses: davidtaylorhq/quartermaster-agent/.github/workflows/quartermaster.yml@main
     permissions:
       contents: write

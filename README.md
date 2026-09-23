@@ -18,8 +18,6 @@ on:
 
 jobs:
   respond:
-    # Keep this condition. Without it every comment starts a runner.
-    if: contains(github.event.comment.body, '@acmebot')
     uses: davidtaylorhq/quartermaster-agent/.github/workflows/quartermaster.yml@main
     permissions:
       contents: write

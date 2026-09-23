@@ -70,11 +70,14 @@ on:
 
 jobs:
   respond:
-    # The caller should carry a condition too: caller-side it costs nothing,
-    # and without one every comment in the repository starts a runner. Who may
-    # instruct the agent is settled in `next-mention`, which is the only place
-    # that can also see the comment it is about to claim.
-    if: contains(github.event.comment.body, inputs.mention)
+    # A stranger's mention should not start a runner, so this is the same
+    # question `next-mention` asks, asked before anything boots.
+    if: >-
+      contains(github.event.comment.body, inputs.mention) &&
+      contains(
+        format(',{0},', inputs.trusted-associations),
+        format(',{0},', github.event.comment.author_association)
+      )
     runs-on: ${{ inputs.runs-on }}
     timeout-minutes: ${{ inputs.timeout-minutes }}
     concurrency:
