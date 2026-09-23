@@ -5,7 +5,7 @@ set -euo pipefail
 
 step() { echo "[host] $*" >&2; }
 
-: "${RUNNER_TEMP:?}" "${HEAD_REF:?}" "${HEAD_OID:?}" "${GITHUB_REPOSITORY:?}"
+: "${RUNNER_TEMP:?}" "${HEAD_REF:?}" "${GITHUB_REPOSITORY:?}"
 : "${GH_TOKEN:?}"
 
 STATE="$HOME/.quartermaster"
@@ -33,9 +33,12 @@ bridge=$(ip -4 -o addr show docker0 2>/dev/null | awk '{print $4}' | cut -d/ -f1
 step "building the relay on $bridge"
 # ---------------------------------------------------------------- git relay
 git --git-dir="$RELAY" config core.bare true
-git --git-dir="$RELAY" update-ref "refs/heads/$HEAD_REF" "$HEAD_OID"
 git --git-dir="$RELAY" symbolic-ref HEAD "refs/heads/$HEAD_REF"
-printf '%s' "$HEAD_OID" > "$PUSHED"
+# What GitHub is holding, as far as this run knows, and so what the push at
+# the end leases against. It has to be the commit that was actually fetched:
+# any other reading of the same branch can have moved on since, and a lease
+# taken against a commit nobody fetched is a lease against nothing.
+git --git-dir="$RELAY" rev-parse "refs/heads/$HEAD_REF" > "$PUSHED"
 
 # A branch name may hold a backtick, a dollar or a quote, and everything here
 # is read by a shell on the runner. The shell does the quoting; nothing is

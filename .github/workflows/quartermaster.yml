@@ -192,11 +192,9 @@ jobs:
           if [ -z "${{ github.event.issue.pull_request }}" ]; then
             # No branch of its own, so it reads the default one. Everything
             # downstream wants a branch and a commit; only pushing differs.
-            oid=$(gh api "repos/${{ github.repository }}/commits/$DEFAULT_BRANCH" --jq .sha)
             {
               echo "ref=refs/heads/$DEFAULT_BRANCH"
               echo "head_ref=$DEFAULT_BRANCH"
-              echo "head_oid=$oid"
               echo "can_push=false"
               echo "reason=this is an issue, not a pull request"
             } >> "$GITHUB_OUTPUT"
@@ -204,13 +202,12 @@ jobs:
           fi
 
           head=$(gh pr view ${{ github.event.issue.number }} --repo ${{ github.repository }} \
-            --json headRefName,isCrossRepository,headRefOid \
-            --jq '[.headRefName, (.isCrossRepository|tostring), .headRefOid] | join(" ")')
-          read -r name fork oid <<<"$head"
+            --json headRefName,isCrossRepository \
+            --jq '[.headRefName, (.isCrossRepository|tostring)] | join(" ")')
+          read -r name fork <<<"$head"
 
           echo "ref=refs/pull/${{ github.event.issue.number }}/head" >> "$GITHUB_OUTPUT"
           echo "head_ref=$name" >> "$GITHUB_OUTPUT"
-          echo "head_oid=$oid" >> "$GITHUB_OUTPUT"
 
           if [ "$fork" = true ]; then
             # The job token cannot write to a fork at all, and the credential
@@ -244,7 +241,6 @@ jobs:
         if: steps.mine.outputs.mine == 'true'
         env:
           HEAD_REF: ${{ steps.pr.outputs.head_ref }}
-          HEAD_OID: ${{ steps.pr.outputs.head_oid }}
           CAN_PUSH: ${{ steps.pr.outputs.can_push }}
           PUSH_BLOCKED_BECAUSE: ${{ steps.pr.outputs.reason }}
           COMMENT_ID: ${{ steps.ack.outputs.id }}
