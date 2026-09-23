@@ -20,6 +20,8 @@ const out = process.env.MENTION_FILE!;
 // and 200 when this account had already added it. So asking is claiming, and
 // there is no moment between the two for another run to fit into.
 async function react(id: number): Promise<boolean> {
+  if (String(id) === process.env.CLAIMED) return true;
+
   try {
     const response = await request("POST", `/repos/${repo}/issues/comments/${id}/reactions`, {
       content: CLAIM,

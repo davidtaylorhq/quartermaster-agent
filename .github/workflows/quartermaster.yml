@@ -105,8 +105,24 @@ jobs:
       PROGRESS_SCRIPT: ${{ github.workspace }}/quartermaster/src/progress.ts
 
     steps:
+      - name: Say we have seen it
+        id: seen
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Reacting is how a run claims a comment: GitHub answers 201 when it
+          # added the reaction and 200 when it was already there. So this tells
+          # whoever asked that their mention landed, and settles whether there
+          # is anything here for this run to do.
+          status=$(gh api --method POST --include \
+            "/repos/${{ github.repository }}/issues/comments/${{ github.event.comment.id }}/reactions" \
+            -f content=eyes | head -1 | awk '{print $2}')
+          echo "reaction: HTTP $status"
+          [ "$status" = 201 ] && echo "ours=true" >> "$GITHUB_OUTPUT" || echo "another run has this one"
+
       - name: Work out where this workflow came from
         id: self
+        if: steps.seen.outputs.ours == 'true'
         env:
           # The workflow file defining this job, not the one that called it.
           WORKFLOW_REF: ${{ job.workflow_ref }}
@@ -126,6 +142,7 @@ jobs:
           echo "ASSET_REF=$WORKFLOW_SHA" >> "$GITHUB_ENV"
 
       - name: Check out the agent
+        if: steps.seen.outputs.ours == 'true'
         uses: actions/checkout@v7
         with:
           repository: ${{ steps.self.outputs.repo }}
@@ -140,8 +157,9 @@ jobs:
           persist-credentials: false
       - parallel:
           - name: Reading pending requests
-            id: mine
+            if: steps.seen.outputs.ours == 'true'
             env:
+              CLAIMED: ${{ github.event.comment.id }}
               GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
               GITHUB_REPOSITORY: ${{ github.repository }}
               ISSUE_NUMBER: ${{ github.event.issue.number }}
@@ -157,7 +175,7 @@ jobs:
               fi
 
           - name: Resolve the pull request
-            if: steps.mine.outputs.mine == 'true'
+            if: steps.seen.outputs.ours == 'true'
             id: pr
             env:
               GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -167,15 +185,18 @@ jobs:
               DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
             run: quartermaster/src/resolve.ts
       - name: Name the agent
+        if: steps.seen.outputs.ours == 'true'
         run: |
           name='${{ inputs.bot-name }}'
           [ -n "$name" ] || name="${MENTION#@}"
           echo "BOT_NAME=$name" >> "$GITHUB_ENV"
       - name: Read the model credentials
+        if: steps.seen.outputs.ours == 'true'
         env:
           PROVIDER_ENV: ${{ secrets.provider-env }}
         run: quartermaster/src/provider-env.ts "$RUNNER_TEMP/provider.env"
       - name: Check out the project's configuration
+        if: steps.seen.outputs.ours == 'true'
         uses: actions/checkout@v7
         with:
           # The default branch, never the pull request head. What this says
@@ -190,6 +211,7 @@ jobs:
           path: project
           persist-credentials: false
       - name: Read the project's development environments
+        if: steps.seen.outputs.ours == 'true'
         env:
           ENVIRONMENTS: ${{ inputs.environments }}
         run: |
@@ -200,7 +222,7 @@ jobs:
           echo "ENVIRONMENTS_JSON=$RUNNER_TEMP/environments.json" >> "$GITHUB_ENV"
       - parallel:
           - name: Say we are on it
-            if: steps.mine.outputs.mine == 'true'
+            if: steps.seen.outputs.ours == 'true'
             id: ack
             env:
               GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -217,7 +239,7 @@ jobs:
               echo "id=$id" >> "$GITHUB_OUTPUT"
 
           - name: Fetch the branch
-            if: steps.mine.outputs.mine == 'true'
+            if: steps.seen.outputs.ours == 'true'
             env:
               GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
               HEAD_REF: ${{ steps.pr.outputs.head_ref }}
@@ -232,12 +254,12 @@ jobs:
                 "+${{ steps.pr.outputs.ref }}:refs/heads/$HEAD_REF"
 
           - name: Pull the sandbox image
-            if: steps.mine.outputs.mine == 'true'
+            if: steps.seen.outputs.ours == 'true'
             env:
               SANDBOX_IMAGE: ghcr.io/${{ steps.self.outputs.repo }}/sandbox:${{ steps.self.outputs.sha }}
             run: docker pull "$SANDBOX_IMAGE"
       - name: Stand up the host services
-        if: steps.mine.outputs.mine == 'true'
+        if: steps.seen.outputs.ours == 'true'
         env:
           HEAD_REF: ${{ steps.pr.outputs.head_ref }}
           CAN_PUSH: ${{ steps.pr.outputs.can_push }}
@@ -248,7 +270,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: quartermaster/scripts/host-setup
       - name: Run the agent
-        if: steps.mine.outputs.mine == 'true'
+        if: steps.seen.outputs.ours == 'true'
         env:
           MENTION_FILE: ${{ runner.temp }}/mention.json
           ISSUE_NUMBER: ${{ github.event.issue.number }}
@@ -271,17 +293,17 @@ jobs:
           quartermaster/scripts/sandbox-up
           quartermaster/src/converse.ts
       - name: Post what a failed run left behind
-        if: failure() && steps.mine.outputs.mine == 'true'
+        if: failure() && steps.seen.outputs.ours == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
         run: quartermaster/src/post-review.ts || true
       - name: Show what happened behind the gate
-        if: failure() && steps.mine.outputs.mine == 'true'
+        if: failure() && steps.seen.outputs.ours == 'true'
         run: cat "$RUNNER_TEMP/dev-up.log" 2>/dev/null || echo "the development environment was never asked for"
       - name: Note that a newer mention took over
-        if: cancelled() && steps.mine.outputs.mine == 'true'
+        if: cancelled() && steps.seen.outputs.ours == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -289,7 +311,7 @@ jobs:
             "/repos/${{ github.repository }}/issues/comments/${{ steps.ack.outputs.id }}" \
             -f body="Superseded by a newer mention." >/dev/null
       - name: Report failure
-        if: failure() && steps.mine.outputs.mine == 'true'
+        if: failure() && steps.seen.outputs.ours == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
