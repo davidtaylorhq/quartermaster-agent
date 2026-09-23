@@ -218,18 +218,17 @@ jobs:
         id: ack
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          PROGRESS_FILE: ${{ runner.temp }}/progress.json
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          id=$(gh api --method POST \
-            "/repos/${{ github.repository }}/issues/${{ github.event.issue.number }}/comments" \
-            -f body="Starting…" --jq .id)
+          id=$(quartermaster/src/progress.ts start \
+                 "Preparing the sandbox" \
+                 "Working" \
+                 "Replying" \
+                 "Waiting ${FOLLOWUP_WINDOW}s for further instructions")
           echo "id=$id" >> "$GITHUB_OUTPUT"
-          COMMENT_ID="$id" PROGRESS_FILE="$RUNNER_TEMP/progress.json" \
-            quartermaster/src/progress.ts start \
-              "Preparing the sandbox" \
-              "Working" \
-              "Replying" \
-              "Waiting ${FOLLOWUP_WINDOW}s for further instructions"
 
       - parallel:
           - name: Fetch the branch

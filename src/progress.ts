@@ -4,7 +4,7 @@
 //     progress start LABEL...     the list, with the first step under way
 //     progress next [LABEL...]    finish this step, do these next, start the next
 //     progress done               finish this step; nothing follows
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 
 const OPENING = "On it!";
 const MARK = {
@@ -37,17 +37,24 @@ function render(labels: string[], at: number): string {
   return `${opening}\n\n${lines.join("\n")}`;
 }
 
-async function publish(labels: string[], at: number) {
-  writeFileSync(STATE, JSON.stringify({ labels, at }));
+// The checklist lives in one comment, written where it is first drawn and
+// edited after that.
+async function publish(labels: string[], at: number): Promise<string | undefined> {
+  const saved = existsSync(STATE)
+    ? (JSON.parse(readFileSync(STATE, "utf8")) as { comment?: string })
+    : {};
+  const comment = process.env.COMMENT_ID || saved.comment;
+  writeFileSync(STATE, JSON.stringify({ labels, at, comment }));
 
-  const comment = process.env.COMMENT_ID;
   const repo = process.env.GITHUB_REPOSITORY;
-  if (!comment || !repo) return;
+  if (!repo) return comment;
 
   const response = await fetch(
-    `https://api.github.com/repos/${repo}/issues/comments/${comment}`,
+    comment
+      ? `https://api.github.com/repos/${repo}/issues/comments/${comment}`
+      : `https://api.github.com/repos/${repo}/issues/${process.env.ISSUE_NUMBER}/comments`,
     {
-      method: "PATCH",
+      method: comment ? "PATCH" : "POST",
       headers: {
         authorization: `Bearer ${process.env.GH_TOKEN}`,
         accept: "application/vnd.github+json",
@@ -58,13 +65,19 @@ async function publish(labels: string[], at: number) {
   );
   if (!response.ok) {
     console.error(`progress: GitHub said ${response.status}: ${await response.text()}`);
+    return comment;
   }
+
+  const id = comment ?? String(((await response.json()) as { id: number }).id);
+  writeFileSync(STATE, JSON.stringify({ labels, at, comment: id }));
+  return id;
 }
 
 const [command, ...labels] = process.argv.slice(2);
 
 if (command === "start") {
-  await publish(labels, 0);
+  const id = await publish(labels, 0);
+  if (id) console.log(id);
 } else if (command === "next" || command === "done") {
   const saved = JSON.parse(readFileSync(STATE, "utf8")) as {
     labels: string[];
