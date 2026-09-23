@@ -43,7 +43,7 @@ export async function request(
 }
 
 // GitHub gives the next page's URL rather than a count.
-export async function paginate<T>(path: string): Promise<T[]> {
+async function paginate<T>(path: string): Promise<T[]> {
   const out: T[] = [];
   let url: string | undefined = `${API}${path}${path.includes("?") ? "&" : "?"}per_page=100`;
 

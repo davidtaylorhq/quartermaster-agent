@@ -45,7 +45,6 @@ jobs:
 | `max-comment-age-hours` | `1` | Older mentions are left alone |
 | `max-turns` | `60` | |
 | `agent-timeout` | `10m` | |
-| `term-llm-version` | pinned | |
 | `runs-on` | `ubuntu-latest` | |
 | `timeout-minutes` | `45` | |
 
@@ -182,4 +181,4 @@ Who may instruct it is settled by GitHub's author association, so a comment from
 
 - **No egress filtering.** The container can reach the whole internet. A prompt injection in a pull request cannot steal a GitHub token, because there isn't one, but it can talk to anything.
 - **The model credential is inside the container.** The GitHub token is not, but the key that pays for inference is. It is stripped from the agent's shell commands, which is not the same as it not being there.
-- **The agent prompt still names Discourse.** Letting a project add its own instructions is the next change.
+- **A project cannot add its own instructions.** The agent reads the prompt this workflow ships and nothing from the repository it is working in.
