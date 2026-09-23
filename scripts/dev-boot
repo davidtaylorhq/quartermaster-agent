@@ -44,14 +44,14 @@ IMAGE=$(field image)
 MOUNT=$(field mount)
 USER_NAME=$(field user)
 ENTRYPOINT=$(field entrypoint)
-CMD=$(field cmd)
+mapfile -t CMD < <(jq -r --arg n "$NAME" '.[$n].cmd[]?' "$ENVIRONMENTS")
 SETUP=$(field setup)
 
 note "starting $IMAGE"
 args=(run -d --name "$CONTAINER" -v "$WORKTREE:$MOUNT" -w "$MOUNT")
 [ -n "$ENTRYPOINT" ] && args+=(--entrypoint "$ENTRYPOINT")
 args+=("$IMAGE")
-[ -n "$CMD" ] && args+=("$CMD")
+args+=("${CMD[@]}")
 if ! docker "${args[@]}" >>"$LOG" 2>&1; then
   fatal "the container would not start"
 fi

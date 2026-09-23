@@ -122,7 +122,6 @@ cat > "$RUNNER_TEMP/sandbox.json" <<JSON
 {
   "container": "$CONTAINER",
   "home": "$HOME_DIR",
-  "sshOptions": "$SSH_OPTS",
-  "credentials": [$(printf '"%s",' ${PROVIDER_ENV_NAMES:-} | sed 's/,$//')]
+  "sshOptions": "$SSH_OPTS"
 }
 JSON

@@ -16,11 +16,10 @@ const sandbox = JSON.parse(readFileSync(join(temp, "sandbox.json"), "utf8")) as 
   container: string;
   home: string;
   sshOptions: string;
-  credentials: string[];
 };
 
 // docker passes credentials by name, so they must be in this process too.
-load(process.env.PROVIDER_ENV_FILE, process.env);
+const credentials = load(process.env.PROVIDER_ENV_FILE, process.env);
 
 function progress(...args: string[]) {
   spawnSync(process.env.PROGRESS_SCRIPT!, args, { stdio: "inherit" });
@@ -60,7 +59,7 @@ function ask(prompt: string, resume: boolean): number {
     "-e", `PATH=${sandbox.home}/.local/bin:/usr/local/bin:/usr/bin:/bin`,
     "-e", `GIT_SSH_COMMAND=ssh ${sandbox.sshOptions}`,
     "-e", "SHELL=/usr/local/bin/qm-shell",
-    ...sandbox.credentials.flatMap((name) => ["-e", name]),
+    ...credentials.flatMap((name) => ["-e", name]),
     sandbox.container, ...term,
   ], { stdio: ["ignore", "inherit", "inherit"] });
 

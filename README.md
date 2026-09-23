@@ -130,6 +130,7 @@ environments:
   - name: frontend
     description: Node and pnpm. Lint, prettier, ember tests.
     image: node:22-bookworm
+    cmd: sleep infinity
     user: node
     mount: /src
     setup: pnpm install --frozen-lockfile
@@ -146,7 +147,9 @@ There are no shortcuts into an environment, so the agent always knows a command 
 
 `description` is what the agent reads to choose between them, so write it for the agent.
 
-`mount` is where the checkout appears, already holding the agent's edits, and commands run there. `image`, `entrypoint` and `cmd` mean what Docker means by them; omit either of the last two for the image's own.
+`mount` is where the checkout appears, already holding the agent's edits, and commands run there. `image`, `entrypoint` and `cmd` mean what Docker means by them; omit either of the last two for the image's own. `cmd` may be a list or a string split on spaces.
+
+The container has to stay up, so an image whose default command exits needs a `cmd` that does not.
 
 `setup` runs once, as `user`, when the container is created, and may assume a clean slate. An environment that stops is not started again, so nothing ever runs it twice. The image needs `bash`.
 
@@ -173,6 +176,8 @@ The agent runs in a container holding no GitHub credential. What it needs is a s
 Who may instruct it is settled by GitHub's author association, so a comment from a passer-by is context, never an instruction.
 
 ## What this does not do yet
+
+- **The runner has to be a fresh one.** State goes in fixed places: one directory under `HOME`, fixed ports, fixed container names, and nothing is torn down at the end. A second run on the same self-hosted machine finds the first one's keys and containers.
 
 - **No egress filtering.** The container can reach the whole internet. A prompt injection in a pull request cannot steal a GitHub token, because there isn't one, but it can talk to anything.
 - **The model credential is inside the container.** The GitHub token is not, but the key that pays for inference is. Stripping it from the agent's shell commands is not the same as it not being there.
