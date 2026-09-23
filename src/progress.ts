@@ -5,6 +5,7 @@
 //     progress next [LABEL...]    finish this step, do these next, start the next
 //     progress done               finish this step; nothing follows
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { request } from "./github.ts";
 import { scratch } from "./scratch.ts";
 
 const OPENING = "On it!";
@@ -54,23 +55,16 @@ async function publish(next: Omit<State, "comment">): Promise<string | undefined
 
   const repo = process.env.GITHUB_REPOSITORY;
   if (!repo) return comment;
+  const drawn = render(labels, at, took);
 
-  const response = await fetch(
-    comment
-      ? `https://api.github.com/repos/${repo}/issues/comments/${comment}`
-      : `https://api.github.com/repos/${repo}/issues/${process.env.ISSUE_NUMBER}/comments`,
-    {
-      method: comment ? "PATCH" : "POST",
-      headers: {
-        authorization: `Bearer ${process.env.GH_TOKEN}`,
-        accept: "application/vnd.github+json",
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({ body: render(labels, at, took) }),
-    },
-  );
-  if (!response.ok) {
-    console.error(`progress: GitHub said ${response.status}: ${await response.text()}`);
+  // A checklist that will not update is not worth losing the run over.
+  let response: Response;
+  try {
+    response = comment
+      ? await request("PATCH", `/repos/${repo}/issues/comments/${comment}`, { body: drawn })
+      : await request("POST", `/repos/${repo}/issues/${process.env.ISSUE_NUMBER}/comments`, { body: drawn });
+  } catch (error) {
+    console.error(`progress: ${error}`);
     return comment;
   }
 
