@@ -15,7 +15,3 @@ test("the mention the workflow already claimed is still ours", () => {
   const asking = source.indexOf("/reactions");
   assert.ok(ours !== -1 && ours < asking, "checked before asking GitHub again");
 });
-
-test("the claim keeps one identity even when the bot posts as another", () => {
-  assert.match(source, /CLAIM_TOKEN/);
-});

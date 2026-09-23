@@ -14,29 +14,24 @@ export type Comment = {
   user: { login: string };
 };
 
-function headers(token?: string): Record<string, string> {
+function headers(): Record<string, string> {
   return {
-    authorization: `Bearer ${token ?? process.env.GH_TOKEN}`,
+    authorization: `Bearer ${process.env.GH_TOKEN}`,
     accept: "application/vnd.github+json",
     "x-github-api-version": "2022-11-28",
   };
 }
 
-// Claiming is the one thing that must not change hands: the reaction only
-// settles who answers because GitHub reports it per authenticated account.
-export const CLAIM_TOKEN = process.env.CLAIM_TOKEN || process.env.GH_TOKEN;
-
 export async function request(
   method: string,
   path: string,
   body?: unknown,
-  token?: string,
 ): Promise<Response> {
   const response = await fetch(`${API}${path}`, {
     method,
     headers: body
-      ? { ...headers(token), "content-type": "application/json" }
-      : headers(token),
+      ? { ...headers(), "content-type": "application/json" }
+      : headers(),
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   if (!response.ok) {

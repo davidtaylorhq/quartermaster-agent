@@ -2,7 +2,7 @@
 // Take the mentions nobody has answered yet. Reacting is what claims one, so
 // two runs cannot answer the same comment.
 import { writeFileSync } from "node:fs";
-import { CLAIM_TOKEN, listComments, request, TRUSTED, type Comment } from "./github.ts";
+import { listComments, request, TRUSTED, type Comment } from "./github.ts";
 import { scratch } from "./scratch.ts";
 
 const CLAIM = "eyes";
@@ -21,12 +21,9 @@ async function react(id: number): Promise<boolean> {
   if (String(id) === process.env.CLAIMED) return true;
 
   try {
-    const response = await request(
-      "POST",
-      `/repos/${repo}/issues/comments/${id}/reactions`,
-      { content: CLAIM },
-      CLAIM_TOKEN,
-    );
+    const response = await request("POST", `/repos/${repo}/issues/comments/${id}/reactions`, {
+      content: CLAIM,
+    });
     return response.status === 201;
   } catch (error) {
     console.error(`could not claim ${id}: ${error}`);

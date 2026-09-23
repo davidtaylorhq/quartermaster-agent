@@ -114,7 +114,6 @@ jobs:
       MCP_TEMPLATE: ${{ github.workspace }}/quartermaster/agent/mcp.json
       TERM_LLM_CONFIG: ${{ inputs.term-llm-config && format('{0}/project/{1}', github.workspace, inputs.term-llm-config) || '' }}
       GITHUB_TOOLSETS: pull_requests,issues
-      CLAIM_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       HAS_APP: ${{ secrets.app-id != '' }}
       GITHUB_REPOSITORY: ${{ github.repository }}
       ISSUE_NUMBER: ${{ github.event.issue.number }}
@@ -122,6 +121,29 @@ jobs:
       RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
     steps:
+      - name: Take the app's identity
+        id: app
+        if: env.HAS_APP == 'true'
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ secrets.app-id }}
+          private-key: ${{ secrets.app-private-key }}
+      - name: Settle who is speaking
+        env:
+          APP_TOKEN: ${{ steps.app.outputs.token }}
+          APP_SLUG: ${{ steps.app.outputs.app-slug }}
+          FALLBACK_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          FALLBACK_LOGIN: ${{ inputs.bot-login }}
+        run: |
+          # Before the claim: the reaction settles which run answers, and it
+          # only does that while one account is making it.
+          if [ -n "$APP_TOKEN" ]; then
+            echo "GH_TOKEN=$APP_TOKEN" >> "$GITHUB_ENV"
+            echo "BOT_LOGIN=$APP_SLUG[bot]" >> "$GITHUB_ENV"
+          else
+            echo "GH_TOKEN=$FALLBACK_TOKEN" >> "$GITHUB_ENV"
+            echo "BOT_LOGIN=$FALLBACK_LOGIN" >> "$GITHUB_ENV"
+          fi
       - name: Say we have seen it
         id: seen
         env:
@@ -130,7 +152,7 @@ jobs:
           # GitHub answers 201 when it added the reaction and 200 when it was
           # already there, which settles whether this run has anything to do.
           status=$(curl -sS -o /dev/null -w '%{http_code}' -X POST \
-            -H "authorization: Bearer $CLAIM_TOKEN" \
+            -H "authorization: Bearer $GH_TOKEN" \
             -H "accept: application/vnd.github+json" \
             -d '{"content":"eyes"}' \
             "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/issues/comments/$COMMENT/reactions")
@@ -169,28 +191,6 @@ jobs:
         id: pull
         background: true
         run: docker pull "$SANDBOX_IMAGE"
-      - name: Take the app's identity
-        id: app
-        if: steps.seen.outputs.ours == 'true' && env.HAS_APP == 'true'
-        uses: actions/create-github-app-token@v3
-        with:
-          app-id: ${{ secrets.app-id }}
-          private-key: ${{ secrets.app-private-key }}
-      - name: Settle who is speaking
-        if: steps.seen.outputs.ours == 'true'
-        env:
-          APP_TOKEN: ${{ steps.app.outputs.token }}
-          APP_SLUG: ${{ steps.app.outputs.app-slug }}
-          FALLBACK_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          FALLBACK_LOGIN: ${{ inputs.bot-login }}
-        run: |
-          if [ -n "$APP_TOKEN" ]; then
-            echo "GH_TOKEN=$APP_TOKEN" >> "$GITHUB_ENV"
-            echo "BOT_LOGIN=$APP_SLUG[bot]" >> "$GITHUB_ENV"
-          else
-            echo "GH_TOKEN=$FALLBACK_TOKEN" >> "$GITHUB_ENV"
-            echo "BOT_LOGIN=$FALLBACK_LOGIN" >> "$GITHUB_ENV"
-          fi
       - name: Check out the agent
         if: steps.seen.outputs.ours == 'true'
         uses: actions/checkout@v7

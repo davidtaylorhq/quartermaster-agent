@@ -69,9 +69,9 @@ workflow — GitHub stops that to keep runs from triggering themselves — so th
 agent's commits arrive on a pull request with no checks against them. An app's
 push starts them like anybody else's.
 
-One thing stays with Actions' own identity either way: the eyes the agent puts
-on a comment to claim it. That reaction only settles which run answers because
-GitHub reports it per account, so it has to be the same account every time.
+The app is settled before anything else happens, because the eyes the agent
+puts on a comment are what claim it, and that only settles which run answers
+while one account is doing the reacting.
 
 ## Choosing a model
 
