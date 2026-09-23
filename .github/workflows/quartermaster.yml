@@ -172,8 +172,9 @@ jobs:
           WORKFLOW_REF: ${{ job.workflow_ref }}
           WORKFLOW_SHA: ${{ job.workflow_sha }}
         run: |
-          # Everything is served from the commit this workflow came from, so a
-          # caller pinned to a tag gets one matching set.
+          # The scripts, the agent and the checklist images all come from the
+          # commit this workflow came from. The sandbox image does not: it
+          # floats, so a pinned caller can get a newer one than its scripts.
           if [ -z "$WORKFLOW_SHA" ] || [ -z "$WORKFLOW_REF" ]; then
             echo "::error::job.workflow_ref/workflow_sha are empty; this workflow cannot locate its own scripts"
             exit 1

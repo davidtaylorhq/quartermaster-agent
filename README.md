@@ -179,6 +179,7 @@ Association is not permission. `MEMBER` means a member of the organisation and `
 
 ## What this does not do yet
 
+- **The sandbox image floats.** Scripts, prompt and assets come from the commit the workflow was called at, but the image is always `sandbox:latest`, so pinning a caller to a tag does not pin what it runs in.
 - **The runner has to be a fresh one.** State goes in fixed places: one directory under `HOME`, fixed ports, fixed container names, and nothing is torn down at the end. A second run on the same self-hosted machine finds the first one's keys and containers.
 
 - **No egress filtering.** The container can reach the whole internet. A prompt injection in a pull request cannot steal a GitHub token, because there isn't one, but it can talk to anything.
