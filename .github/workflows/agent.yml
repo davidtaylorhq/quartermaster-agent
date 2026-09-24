@@ -30,6 +30,10 @@ on:
           anything an environment variable cannot express.
         type: string
         default: ""
+      instructions:
+        description: "Path to additional system-prompt Markdown, read from this repository's default branch."
+        type: string
+        default: ""
       environments:
         description: >-
           Path in this repository to the development environments the agent may
@@ -115,6 +119,7 @@ jobs:
       AGENT_DIR: ${{ github.workspace }}/workflow-agent/agent
       FORWARD_SCRIPT: ${{ github.workspace }}/workflow-agent/bin/git-forward.ts
       TERM_LLM_CONFIG: ${{ inputs.term-llm-config && format('{0}/project/{1}', github.workspace, inputs.term-llm-config) || '' }}
+      INSTRUCTIONS_FILE: ${{ inputs.instructions && format('{0}/project/{1}', github.workspace, inputs.instructions) || '' }}
       GITHUB_TOOLSETS: pull_requests,issues,actions
       HAS_APP: ${{ secrets.app-id != '' }}
       CLAIMED: ${{ github.event.comment.id }}
@@ -282,6 +287,7 @@ jobs:
           sparse-checkout: |
             ${{ inputs.environments }}
             ${{ inputs.term-llm-config }}
+            ${{ inputs.instructions }}
           sparse-checkout-cone-mode: false
           path: project
           persist-credentials: false

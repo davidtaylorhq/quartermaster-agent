@@ -60,9 +60,12 @@ Pass these under the caller's `with:`:
 | `mention` | Required trigger, including `@` |
 | `provider` | term-llm provider or `provider:model`; omit for automatic selection |
 | `term-llm-config` | Optional config file, read from your default branch |
+| `instructions` | Optional Markdown file appended to the system prompt, read from your default branch |
 | `environments` | Alternative path to the development environment file |
 | `trusted-associations` | Who may instruct the bot |
 | `agent-timeout` | Agent time limit; default `10m` |
+
+Set `instructions: .github/workflow-agent/instructions.md` for bot-specific guidance such as tone and review priorities. The file supplements the built-in prompt; it does not change tools or publishing. An explicitly configured file must exist. Repository `AGENTS.md` files and skills are still read from the working checkout.
 
 `provider-env` accepts multiple `NAME=value` lines. For a Claude subscription, use `provider: claude-bin` with `CLAUDE_CODE_OAUTH_TOKEN` instead of the API key above.
 

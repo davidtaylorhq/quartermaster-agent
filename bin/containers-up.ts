@@ -81,6 +81,19 @@ The first command into an environment takes a few minutes while it starts; after
 `
   );
 }
+if (process.env.INSTRUCTIONS_FILE) {
+  const instructions = readFileSync(process.env.INSTRUCTIONS_FILE, "utf8");
+  appendFileSync(
+    join(agent, "system.md"),
+    `
+## Repository-specific instructions
+
+Apply this guidance alongside the execution and publishing requirements above.
+
+${instructions.trim()}
+`
+  );
+}
 writeFileSync(
   join(config, "mcp.json"),
   JSON.stringify({

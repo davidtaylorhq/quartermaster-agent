@@ -61,6 +61,7 @@ if (args.includes("ask")) process.exit(Number(process.env.AGENT_EXIT || 0));
     GITHUB_REPOSITORY: "owner/repo",
     ENVIRONMENTS_JSON: join(dir, "environments.json"),
     TERM_LLM_CONFIG: join(dir, "project-config.yaml"),
+    INSTRUCTIONS_FILE: "",
     PROVIDER_ENV_FILE: join(dir, "provider.env"),
     GH_TOKEN: "github-secret",
     MAX_TURNS: "5",
@@ -239,4 +240,42 @@ test("an absent optional provider configuration does not prevent startup", (t) =
     bootstrap.args.join(" "),
     /GH_TOKEN|github-secret|model-secret/
   );
+});
+
+test("repository instructions supplement the base prompt and environments", (t) => {
+  const { dir, env, run } = fixture(t);
+  env.INSTRUCTIONS_FILE = join(dir, "instructions.md");
+  const instructions = "Prioritize regressions.\n\nKeep replies brief.";
+  writeFileSync(env.INSTRUCTIONS_FILE, instructions);
+  writeFileSync(
+    join(dir, "environments.json"),
+    JSON.stringify({ node: { description: "Run JavaScript tests" } })
+  );
+  run("containers-up.ts");
+  const prompt = readFileSync(
+    join(dir, "agent-config/agents/workflow-agent/system.md"),
+    "utf8"
+  );
+  assert.ok(
+    prompt.startsWith(readFileSync(join(root, "agent/system.md"), "utf8"))
+  );
+  assert.ok(prompt.includes("Run JavaScript tests"));
+  assert.ok(prompt.endsWith(instructions + "\n"));
+  assert.ok(
+    prompt.indexOf("## Development environments") <
+      prompt.indexOf("## Repository-specific instructions")
+  );
+});
+
+test("a missing configured instructions file stops startup before containers start", (t) => {
+  const { dir, env, calls } = fixture(t);
+  env.INSTRUCTIONS_FILE = join(dir, "missing-instructions.md");
+  const out = spawnSync(
+    process.execPath,
+    ["--experimental-strip-types", join(root, "bin/containers-up.ts")],
+    { env, encoding: "utf8" }
+  );
+  assert.equal(out.status, 1);
+  assert.match(out.stderr, /ENOENT.*missing-instructions\.md/);
+  assert.deepEqual(calls(), []);
 });
