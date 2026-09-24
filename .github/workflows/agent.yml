@@ -67,7 +67,7 @@ on:
           A GitHub App to act as, instead of Actions' own identity. Its
           comments carry the app's name, and its pushes start CI, which a push
           from `GITHUB_TOKEN` does not. Needs write on issues, pull requests
-          and contents.
+          and contents, plus read on actions, checks and statuses.
         required: false
       app-private-key:
         required: false
@@ -99,6 +99,9 @@ jobs:
       contents: write  # the relay forwards the agent's commits; its hooks gate the branch
       pull-requests: write
       issues: write
+      actions: read
+      checks: read
+      statuses: read
 
     env:
       MENTION: ${{ inputs.mention }}
@@ -112,7 +115,7 @@ jobs:
       AGENT_DIR: ${{ github.workspace }}/workflow-agent/agent
       FORWARD_SCRIPT: ${{ github.workspace }}/workflow-agent/bin/git-forward.ts
       TERM_LLM_CONFIG: ${{ inputs.term-llm-config && format('{0}/project/{1}', github.workspace, inputs.term-llm-config) || '' }}
-      GITHUB_TOOLSETS: pull_requests,issues
+      GITHUB_TOOLSETS: pull_requests,issues,actions
       HAS_APP: ${{ secrets.app-id != '' }}
       CLAIMED: ${{ github.event.comment.id }}
       GITHUB_REPOSITORY: ${{ github.repository }}
@@ -133,6 +136,9 @@ jobs:
           permission-contents: write
           permission-issues: write
           permission-pull-requests: write
+          permission-actions: read
+          permission-checks: read
+          permission-statuses: read
       - name: Settle who is speaking
         env:
           APP_TOKEN: ${{ steps.app.outputs.token }}
