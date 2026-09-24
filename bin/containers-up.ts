@@ -4,6 +4,7 @@ import { randomBytes } from "node:crypto";
 import {
   appendFileSync,
   cpSync,
+  existsSync,
   mkdirSync,
   readFileSync,
   writeFileSync,
@@ -94,6 +95,7 @@ writeFileSync(
 );
 if (
   process.env.TERM_LLM_CONFIG &&
+  existsSync(process.env.TERM_LLM_CONFIG) &&
   readFileSync(process.env.TERM_LLM_CONFIG).length
 ) {
   cpSync(process.env.TERM_LLM_CONFIG, join(config, "config.yaml"));

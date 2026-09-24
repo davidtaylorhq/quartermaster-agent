@@ -44,8 +44,7 @@ jobs:
           - name: Shell
             if: ${{ !cancelled() }}
             run: |
-              for f in bin/host-setup bin/workspace-start bin/dev-boot bin/dev bin/git-update bin/git-post-receive; do bash -n "$f"; done
-              sh -n bin/host-gate
+              for f in bin/host-setup bin/host-gate bin/workspace-start bin/dev-boot bin/dev bin/git-update bin/git-post-receive test/docker-smoke; do bash -n "$f"; done
 
   containers:
     runs-on: ubuntu-latest

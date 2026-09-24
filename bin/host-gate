@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # The only things the sandbox can ask the runner to do. Reading this repository
 # is not one of them: that goes to the forwarder over HTTP.
 #

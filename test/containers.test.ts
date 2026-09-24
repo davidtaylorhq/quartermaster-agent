@@ -176,13 +176,6 @@ test("an unavailable workspace server stops startup", (t) => {
 for (const resume of [false, true]) {
   test(`model credentials stay in the agent container and stale output is removed (resume=${resume})`, (t) => {
     const { dir, env, calls } = fixture(t);
-    writeFileSync(
-      join(dir, "agent.json"),
-      JSON.stringify({
-        container: "workflow-agent-client",
-        home: "/home/agent",
-      })
-    );
     mkdirSync(join(dir, "output"));
     writeFileSync(join(dir, "output", "finish.json"), "stale reply");
     writeFileSync(join(dir, "output", "findings.jsonl"), "stale finding");
@@ -217,3 +210,13 @@ for (const resume of [false, true]) {
     );
   });
 }
+
+test("an absent optional provider configuration does not prevent startup", (t) => {
+  const { dir, run } = fixture(t);
+  rmSync(join(dir, "project-config.yaml"));
+  run("containers-up.ts");
+  assert.throws(
+    () => readFileSync(join(dir, "agent-config/config.yaml")),
+    /ENOENT/
+  );
+});

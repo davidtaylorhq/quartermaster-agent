@@ -173,6 +173,8 @@ With no such file the agent can use the workspace shell, but no development envi
 
 ## How it works
 
+`bin/host-setup` provisions the runner's Git relay, read forwarder and SSH gate. `bin/containers-up.ts` prepares configuration and starts the two containers on a private Docker network. The workspace MCP server is its container's main process; its exit and logs are visible through Docker. The client stays up across conversation turns. Its configuration and SSH key are mounted read-only, and its output directory is writable by the agent and readable by the runner.
+
 The model client and workspace tools run in separate containers, neither holding a GitHub credential. Everything it can ask the runner for goes through an SSH gate with a fixed list of commands, and anything else is refused:
 
 | | said by |

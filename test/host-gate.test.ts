@@ -17,7 +17,7 @@ let relay: string;
 let stubs: string;
 
 function ask(command: string, input = "") {
-  return spawnSync("sh", [gate], {
+  return spawnSync(gate, [], {
     input,
     encoding: "utf8",
     env: {
@@ -119,4 +119,18 @@ test("the MCP server is given the token by name, never by value", () => {
   assert.match(out.stdout, /-e GITHUB_PERSONAL_ACCESS_TOKEN/);
   assert.doesNotMatch(out.stdout, /GITHUB_PERSONAL_ACCESS_TOKEN=/);
   assert.match(out.stdout, /GITHUB_READ_ONLY/);
+});
+
+test("the gate reads Bash-quoted multiline configuration literally", () => {
+  const envFile = join(home, ".workflow-agent/env");
+  const { stdout, status } = spawnSync(
+    "bash",
+    ["-c", "printf 'export BOT_NAME=%q\\n' \"$1\"", "bash", "first\nsecond"],
+    { encoding: "utf8" }
+  );
+  assert.equal(status, 0);
+  writeFileSync(envFile, stdout, { flag: "a" });
+  const out = ask("forbidden");
+  assert.equal(out.status, 1);
+  assert.match(out.stderr, /first\nsecond: not permitted/);
 });
