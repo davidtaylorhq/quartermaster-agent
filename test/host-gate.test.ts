@@ -54,6 +54,11 @@ before(() => {
   execFileSync("git", ["commit", "-qm", "first"], env);
   execFileSync("git", ["push", "-q", relay, "HEAD:refs/heads/topic"], env);
 
+  writeFileSync(
+    join(stubs, "open-pr.ts"),
+    'import { readFileSync } from "node:fs"; console.log(readFileSync(0, "utf8"));'
+  );
+
   // Standing in for docker, so a test can see what the gate would have run.
   writeFileSync(join(stubs, "docker"), '#!/bin/sh\necho "docker $*"\n');
   chmodSync(join(stubs, "docker"), 0o755);
@@ -71,6 +76,7 @@ before(() => {
     join(home, ".workflow-agent", "env"),
     [
       `export RELAY=${relay}`,
+      `export AGENT_SCRIPTS=${stubs}`,
       `export BOT_NAME=testbot`,
       `export MCP_IMAGE=ghcr.io/example/mcp:1`,
       `export ENVIRONMENTS=${join(home, ".workflow-agent", "environments.json")}`,
@@ -143,4 +149,17 @@ test("workspace shell enters the fixed unprivileged container without host crede
     "docker exec -i -u agent -w /src -e HOME=/home/agent workflow-agent-sandbox timeout --kill-after=5s 600 bash -s"
   );
   assert.equal(ask("workspace-shell arbitrary-arguments").status, 1);
+});
+
+test("PR creation forwards JSON over stdin and refuses extra command arguments", () => {
+  const request = JSON.stringify({
+    head: "backport/2026.5/123",
+    base: "release/2026.5",
+    title: "A `literal` $(title)",
+    body: "text",
+  });
+  const out = ask("open-pull-request", request);
+  assert.equal(out.status, 0, out.stderr);
+  assert.equal(out.stdout.trim(), request);
+  assert.equal(ask("open-pull-request other/repo", request).status, 1);
 });

@@ -12,6 +12,9 @@ case "$SSH_ORIGINAL_COMMAND" in
       workflow-agent-sandbox \
       timeout --kill-after=5s 600 bash -s
     ;;
+  open-pull-request)
+    exec node --experimental-strip-types --no-warnings=ExperimentalWarning "$AGENT_SCRIPTS/open-pr.ts"
+    ;;
   mcp)
     exec docker run -i --rm \
       -e GITHUB_PERSONAL_ACCESS_TOKEN \
@@ -41,7 +44,7 @@ case "$SSH_ORIGINAL_COMMAND" in
       "workflow-agent-dev-$name" bash -l
     ;;
   git-receive-pack*)
-    exec git-receive-pack "$RELAY"
+    exec flock "$RELAY/agent.lock" git-receive-pack "$RELAY"
     ;;
   *)
     echo "$BOT_NAME: not permitted" >&2

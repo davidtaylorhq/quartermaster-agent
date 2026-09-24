@@ -36,6 +36,10 @@ git --git-dir="$RELAY" rev-parse "refs/heads/$HEAD_REF" > "$PUSHED"
 
 # A branch name may hold a backtick, a dollar or a quote, and a shell on the
 # runner reads all of this, so every value is quoted.
+export BRANCH_POLICY="$RUNNER_TEMP/branches.json"
+export PUSHED
+node --experimental-strip-types --no-warnings=ExperimentalWarning "$(dirname "$0")/prepare-branches.ts"
+
 step "writing the gate environment"
 : > "$STATE/env"
 chmod 600 "$STATE/env"
@@ -44,6 +48,8 @@ put RELAY "$RELAY"
 put PUSHED "$PUSHED"
 put BOT_NAME "$BOT_NAME"
 put HEAD_REF "$HEAD_REF"
+put BRANCH_POLICY "$BRANCH_POLICY"
+put AGENT_SCRIPTS "$(cd "$(dirname "$0")" && pwd)"
 put MCP_IMAGE "$MCP_IMAGE"
 put GITHUB_PERSONAL_ACCESS_TOKEN "$GH_TOKEN"
 put GH_TOKEN "$GH_TOKEN"

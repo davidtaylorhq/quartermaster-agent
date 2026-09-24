@@ -1,6 +1,6 @@
 // The agent has no memory between mentions, so what was said goes in the
 // prompt.
-import { type Comment, listComments, TRUSTED } from "./github.ts";
+import { canInstruct, type Comment, listComments } from "./github.ts";
 
 const KEEP = 20;
 const WIDTH = 800;
@@ -52,7 +52,7 @@ export async function thread(skip: Set<string>): Promise<string> {
     let who: string = c.user.login;
     if (who === (process.env.BOT_LOGIN ?? "github-actions[bot]")) {
       who = "you";
-    } else if (!TRUSTED.has(c.author_association)) {
+    } else if (!canInstruct(c)) {
       who = `${who} (cannot write to this repository)`;
     }
     out.push(`@${who}:`, body, "");

@@ -20,14 +20,29 @@ tools:
             description: "Bash command to execute in /src, with a ten-minute deadline. Use cd to change directories or timeout for a shorter deadline."
         required: [command]
         additionalProperties: false
+    - name: open_pull_request
+      description: "Open a PR for an allowed branch already pushed to this repository, or return its existing open PR. Publishes immediately. Does not merge."
+      script: scripts/open-pull-request
+      call: json
+      input:
+        type: object
+        properties:
+          head:
+            type: string
+          base:
+            type: string
+          title:
+            type: string
+          body:
+            type: string
+        required: [head, base, title, body]
+        additionalProperties: false
 
 mcp:
   - name: github
   - name: workspace
 
-# The run ends when this is called, and only then. Nothing the agent does
-# reaches GitHub on its own: line comments are held, this is the single reply,
-# and the runner posts both together, once.
+# The runner publishes the final reply and collected line comments together.
 output_tool:
   name: finish
   description: "Finish the run. Call once, when there is nothing left to do."

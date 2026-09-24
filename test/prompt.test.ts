@@ -29,7 +29,10 @@ test("when it cannot push, it is told why and told to say so", () => {
     "",
     "x"
   );
-  assert.match(out, /nothing reaches GitHub: the branch lives in a fork/);
+  assert.match(
+    out,
+    /original PR branch is unavailable: the branch lives in a fork/
+  );
   assert.match(out, /Say so if you make changes/);
 });
 
@@ -56,4 +59,19 @@ test("a follow-up does not repeat what the session still holds", () => {
   const out = again("@bot and one more thing");
   assert.doesNotMatch(out, /cloned at \/src/);
   assert.match(out, /You are where you were/);
+});
+
+test("a workflow task accompanies the original request", () => {
+  const prompt = first(
+    pr,
+    "history",
+    "@bot backport",
+    "Resolve conflicts described in comment 123."
+  );
+  assert.match(prompt, /@bot backport/);
+  assert.match(
+    prompt,
+    /workflow task for this request ---\nResolve conflicts described in comment 123/
+  );
+  assert.doesNotMatch(first(pr, "", "hello"), /workflow task/);
 });

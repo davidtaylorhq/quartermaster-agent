@@ -81,6 +81,21 @@ The first command into an environment takes a few minutes while it starts; after
 `
   );
 }
+if (process.env.ALLOWED_BRANCHES?.trim()) {
+  appendFileSync(
+    join(agent, "system.md"),
+    `
+## Additional push destinations
+
+You may also push branches whose full names match one of these regular expressions:
+
+${process.env.ALLOWED_BRANCHES}
+
+Use an explicit destination, such as git push origin HEAD:refs/heads/backport/2026.5/123.
+Default branch pushes, tags and deletions are prohibited. Use open_pull_request after a successful push to open a PR against the appropriate base branch. This publishes immediately.
+`
+  );
+}
 if (process.env.INSTRUCTIONS_FILE) {
   const instructions = readFileSync(process.env.INSTRUCTIONS_FILE, "utf8");
   appendFileSync(

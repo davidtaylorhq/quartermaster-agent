@@ -1,6 +1,4 @@
 #!/bin/bash
+set -euo pipefail
 . "$HOME/.workflow-agent/env"
-if [ "$1" != "refs/heads/$HEAD_REF" ]; then
-  echo "${BOT_NAME}: only $HEAD_REF may be pushed from the sandbox" >&2
-  exit 1
-fi
+exec node --experimental-strip-types --no-warnings=ExperimentalWarning "$AGENT_SCRIPTS/git-relay.ts" update "$@"

@@ -7,6 +7,7 @@ export SANDBOX_IMAGE="${SANDBOX_IMAGE:-workflow-agent-smoke}"
 export RUNNER_TEMP="$(mktemp -d)"
 export GITHUB_ENV="$RUNNER_TEMP/github-env"
 export GH_TOKEN=smoke-github-secret
+export DEFAULT_BRANCH=main
 export HEAD_REF=topic GITHUB_REPOSITORY=example/repo BOT_NAME=smoke
 export ASSET_REPO=example/workflow-agent ASSET_REF=main
 export FORWARD_SCRIPT="$PWD/bin/git-forward.ts" PROGRESS_SCRIPT=/bin/true

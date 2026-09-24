@@ -16,7 +16,8 @@ const RULES = [
 export function first(
   where: Situation,
   history: string,
-  answering: string
+  answering: string,
+  task = ""
 ): string {
   const out = [
     `You are answering a GitHub comment on ${where.repo}, issue/PR #${where.issue}.`,
@@ -26,7 +27,7 @@ export function first(
     "",
     where.canPush
       ? "Pushing with 'git push origin HEAD' sends your commits to the pull request branch."
-      : `You may commit and push, but nothing reaches GitHub: ${where.pushBlockedBecause}. Say so if you make changes.`,
+      : `Pushing to the original PR branch is unavailable: ${where.pushBlockedBecause}. You may use any additional push destinations listed in the system prompt. Say so if you make changes you cannot publish.`,
     "",
     ...RULES,
     "",
@@ -43,6 +44,9 @@ export function first(
   }
 
   out.push("--- what you are answering ---", answering.trimEnd());
+  if (task.trim()) {
+    out.push("", "--- workflow task for this request ---", task.trim());
+  }
   return out.join("\n") + "\n";
 }
 

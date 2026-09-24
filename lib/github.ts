@@ -5,6 +5,18 @@ export const TRUSTED = new Set(
   (process.env.TRUSTED_ASSOCIATIONS ?? "OWNER,MEMBER,COLLABORATOR").split(",")
 );
 
+const TRUSTED_LOGINS = new Set(
+  (process.env.TRUSTED_LOGINS ?? "").split(",").filter(Boolean)
+);
+
+export function canInstruct(comment: Comment): boolean {
+  return (
+    TRUSTED_LOGINS.has(comment.user.login) ||
+    (!comment.user.login.endsWith("[bot]") &&
+      TRUSTED.has(comment.author_association))
+  );
+}
+
 export type Comment = {
   id: number;
   body: string;

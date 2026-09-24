@@ -39,6 +39,7 @@ before(async () => {
     ISSUE_NUMBER: "7",
     MENTION: "@bot",
     TRUSTED_ASSOCIATIONS: "OWNER",
+    TRUSTED_LOGINS: "patch-triage[bot]",
     MAX_COMMENT_AGE_HOURS: "1",
     FOLLOWUP_WINDOW: "0",
     CLAIMED: String(TRIGGER),
@@ -62,6 +63,7 @@ function comment(id: number) {
 }
 
 beforeEach(() => {
+  delete process.env.AGENT_TASK;
   // The workflow's first step reacted to the triggering comment already.
   reacted = [TRIGGER];
   comments = [comment(TRIGGER)];
@@ -117,4 +119,46 @@ test("the triggering comment remains eligible after the backlog age limit", asyn
     (await claim(false)).map((m) => m.id),
     [TRIGGER]
   );
+});
+
+test("workflow tasks only claim the original authorized comment, without requiring a mention", async () => {
+  process.env.AGENT_TASK = "Resolve backport conflicts";
+  comments = [{ ...comment(TRIGGER), body: "backport please" }, comment(200)];
+  assert.deepEqual(
+    (await claim(false)).map((m) => m.id),
+    [TRIGGER]
+  );
+});
+
+test("workflow tasks do not bypass author checks", async () => {
+  process.env.AGENT_TASK = "Resolve backport conflicts";
+  comments = [{ ...comment(TRIGGER), author_association: "NONE" }];
+  assert.deepEqual(await claim(false), []);
+});
+
+test("an explicitly trusted bot can hand off a workflow task", async () => {
+  process.env.AGENT_TASK = "Resolve backport conflicts";
+  comments = [
+    {
+      ...comment(TRIGGER),
+      user: { login: "patch-triage[bot]" },
+      author_association: "NONE",
+    },
+  ];
+  assert.deepEqual(
+    (await claim(false)).map((m) => m.id),
+    [TRIGGER]
+  );
+});
+
+test("other bots cannot hand off workflow tasks", async () => {
+  process.env.AGENT_TASK = "Resolve backport conflicts";
+  comments = [
+    {
+      ...comment(TRIGGER),
+      user: { login: "other[bot]" },
+      author_association: "OWNER",
+    },
+  ];
+  assert.deepEqual(await claim(false), []);
 });

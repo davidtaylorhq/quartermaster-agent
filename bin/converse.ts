@@ -73,7 +73,10 @@ try {
       // The sandbox is up. `turn` marks the rest.
       progress("next");
       const history = await thread(new Set(asked.map((m) => String(m.id))));
-      await turn(first(where, history, render(asked)), false);
+      await turn(
+        first(where, history, render(asked), process.env.AGENT_TASK),
+        false
+      );
     }
   } else {
     while (true) {

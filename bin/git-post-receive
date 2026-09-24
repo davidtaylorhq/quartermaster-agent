@@ -1,28 +1,4 @@
 #!/bin/bash
+set -euo pipefail
 . "$HOME/.workflow-agent/env"
-while read -r old new ref; do
-  [ "$ref" = "refs/heads/$HEAD_REF" ] || continue
-
-  if [ "${CAN_PUSH:-false}" != true ]; then
-    echo "${BOT_NAME}: kept in the sandbox, not sent to GitHub: ${PUSH_BLOCKED_BECAUSE:-pushing is unavailable}"
-    continue
-  fi
-
-  expected=$(cat "$PUSHED")
-  auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
-  if git -c http.extraheader="AUTHORIZATION: basic $auth" \
-       push --force-with-lease="refs/heads/$HEAD_REF:$expected" \
-       "https://github.com/$GITHUB_REPOSITORY.git" \
-       "$new:refs/heads/$HEAD_REF" 2>&1
-  then
-    printf '%s' "$new" > "$PUSHED"
-    echo "${BOT_NAME}: pushed ${new:0:12} to $HEAD_REF on GitHub"
-  else
-    # Put the relay back, or the next push of the same commit is a no-op
-    # against a ref that already moved, and nothing reaches GitHub at all.
-    git update-ref "$ref" "$old"
-    echo "${BOT_NAME}: GitHub refused the push; the commit is only in the sandbox"
-    echo "${BOT_NAME}: the branch most likely moved since this run started"
-    echo "${BOT_NAME}: if the branch moved, start a new run from its current head before pushing"
-  fi
-done
+exec node --experimental-strip-types --no-warnings=ExperimentalWarning "$AGENT_SCRIPTS/git-relay.ts" post-receive

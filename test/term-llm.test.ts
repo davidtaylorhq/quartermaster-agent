@@ -51,6 +51,11 @@ test(
       join(stubs, "ssh"),
       `#!/bin/bash
 unset ANTHROPIC_API_KEY
+if [ "$3" = open-pull-request ]; then
+  cat > "${outputDir}/pr-request.json"
+  echo '{"url":"https://github.com/test/repo/pull/2","created":true}'
+  exit 0
+fi
 cd "${workspace}"
 exec bash -s
 `,
@@ -146,6 +151,15 @@ exec bash -s
         "line_comment",
         { path: "example.txt", line: 1, body: "A review finding" },
       ],
+      [
+        "open_pull_request",
+        {
+          head: "backport/2026.5/123",
+          base: "release/2026.5",
+          title: "Backport",
+          body: "Details",
+        },
+      ],
       ["finish", { reply: "Finished through MCP" }],
       ["read_file", { path: "example.txt" }],
       ["finish", { reply: "Follow-up through MCP" }],
@@ -185,6 +199,7 @@ exec bash -s
           names.join(", ")
         );
         assert.ok(names.includes("workspace_shell"));
+        assert.ok(names.includes("open_pull_request"));
         assert.ok(!names.includes("shell"));
         const action = actions[next++];
         assert.ok(action, "unexpected model request");
@@ -310,6 +325,15 @@ exec bash -s
         { reply: resume ? "Follow-up through MCP" : "Finished through MCP" }
       );
     }
+    assert.deepEqual(
+      JSON.parse(readFileSync(join(outputDir, "pr-request.json"), "utf8")),
+      {
+        head: "backport/2026.5/123",
+        base: "release/2026.5",
+        title: "Backport",
+        body: "Details",
+      }
+    );
     assert.deepEqual(failures, []);
     assert.equal(next, actions.length);
     assert.equal(

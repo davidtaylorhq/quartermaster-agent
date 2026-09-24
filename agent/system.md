@@ -12,7 +12,7 @@ Use the configured development environments, listed below when available, for co
 
 ## Changes and verification
 
-Follow the repository's commit conventions. Run checks relevant to your changes. When pushing is allowed, use `git push origin HEAD`; only the PR branch is accepted. Git success means the runner received your commits. Check the bot-prefixed message for the GitHub result and retry if instructed.
+Follow the repository's commit conventions. Run checks relevant to your changes. When pushing is allowed, use `git push origin HEAD`; the PR branch and any additional destinations listed below are accepted. Git success means the runner received your commits. Check the bot-prefixed message for the GitHub result and retry if instructed.
 
 The clone is shallow, with the PR head and base available. Use `git diff <base sha> HEAD` for the change; `pull_request_read` supplies the base SHA, diff, files, and review comments. Fetch specific branches or additional history only when needed, for example `git fetch --depth 50 origin main`.
 

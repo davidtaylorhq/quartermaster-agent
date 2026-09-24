@@ -1,7 +1,7 @@
 // Take the mentions nobody has answered yet. Reacting is what claims one, so
 // two runs cannot answer the same comment.
 import { remember } from "./claims.ts";
-import { type Comment, listComments, request, TRUSTED } from "./github.ts";
+import { canInstruct, type Comment, listComments, request } from "./github.ts";
 import { type Mention } from "./mentions.ts";
 
 const CLAIM = "eyes";
@@ -62,10 +62,16 @@ async function outstanding(
     all.push((await response.json()) as Comment);
   }
   return all
+    .filter(
+      (c) => !process.env.AGENT_TASK || !already || String(c.id) === already
+    )
     .filter((c) => c.created_at >= cutoff || String(c.id) === already)
-    .filter((c) => !c.user.login.endsWith("[bot]"))
-    .filter((c) => TRUSTED.has(c.author_association))
-    .filter((c) => (c.body ?? "").includes(MACRO))
+    .filter(canInstruct)
+    .filter(
+      (c) =>
+        (process.env.AGENT_TASK && String(c.id) === already) ||
+        (c.body ?? "").includes(MACRO)
+    )
     .sort((a, b) => a.created_at.localeCompare(b.created_at));
 }
 
