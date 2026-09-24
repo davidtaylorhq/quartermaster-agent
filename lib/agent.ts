@@ -1,14 +1,11 @@
 import { spawnSync } from "node:child_process";
-import { readFileSync, rmSync } from "node:fs";
+import { rmSync } from "node:fs";
 import { join } from "node:path";
 import { load } from "./credentials.ts";
+import { CLIENT, HOME } from "./runtime.ts";
 
 export function ask(prompt: string, resume: boolean): number {
   const temp = process.env.RUNNER_TEMP!;
-  const agent = JSON.parse(readFileSync(join(temp, "agent.json"), "utf8")) as {
-    container: string;
-    home: string;
-  };
   const credentials = load(process.env.PROVIDER_ENV_FILE, process.env);
 
   // Last turn's output must not be mistaken for this one's.
@@ -17,13 +14,13 @@ export function ask(prompt: string, resume: boolean): number {
   }
 
   const term = [
-    `${agent.home}/.local/bin/term-llm`,
+    `${HOME}/.local/bin/term-llm`,
     "ask",
     "--agent",
     "workflow-agent",
     ...(process.env.PROVIDER ? ["--provider", process.env.PROVIDER] : []),
     "--session-db",
-    `${agent.home}/session.db`,
+    `${HOME}/session.db`,
     ...(resume ? ["--resume"] : []),
     "--yolo",
     "--text",
@@ -43,13 +40,13 @@ export function ask(prompt: string, resume: boolean): number {
       "-u",
       "agent",
       "-w",
-      agent.home,
+      HOME,
       "-e",
-      `HOME=${agent.home}`,
+      `HOME=${HOME}`,
       "-e",
-      `PATH=${agent.home}/.local/bin:/usr/local/bin:/usr/bin:/bin`,
+      `PATH=${HOME}/.local/bin:/usr/local/bin:/usr/bin:/bin`,
       ...credentials.flatMap((name) => ["-e", name]),
-      agent.container,
+      CLIENT,
       ...term,
     ],
     { stdio: ["ignore", "inherit", "inherit"] }

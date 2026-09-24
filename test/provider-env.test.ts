@@ -62,7 +62,7 @@ test("the file is readable only by the runner", () => {
 
 test("only the path and the names leave in the environment", () => {
   const { exported } = read("A=a-secret-value\n");
-  assert.match(exported, /PROVIDER_ENV_NAMES=A/);
+  assert.doesNotMatch(exported, /PROVIDER_ENV_NAMES/);
   assert.doesNotMatch(exported, /a-secret-value/);
 });
 

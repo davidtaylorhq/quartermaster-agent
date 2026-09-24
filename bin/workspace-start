@@ -1,0 +1,9 @@
+#!/bin/bash
+set -euo pipefail
+
+# Reads use the credential forwarder; pushes use the branch-restricted gate.
+git remote set-url origin "http://host.docker.internal:$FORWARD_PORT/$GITHUB_REPOSITORY.git"
+git remote set-url --push origin "ssh://$GATE_USER@host.docker.internal/relay.git"
+exec "$HOME/.local/bin/term-llm" serve mcp \
+  --tools read_file,write_file,edit_file,glob,grep,shell \
+  --host 0.0.0.0 --port 8080 --token "$MCP_TOKEN" --yolo

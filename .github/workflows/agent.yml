@@ -309,8 +309,7 @@ jobs:
       - name: Run the agent
         if: steps.seen.outputs.ours == 'true'
         run: |
-          workflow-agent/bin/sandbox-up
-          workflow-agent/bin/agent-up
+          workflow-agent/bin/containers-up.ts
           workflow-agent/bin/converse.ts first
       - name: Answer anything that follows
         if: steps.seen.outputs.ours == 'true'

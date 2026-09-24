@@ -44,10 +44,7 @@ function main(dest: string) {
   chmodSync(dest, 0o600);
   console.log(`given to the agent container: ${names.join(", ") || "none"}`);
 
-  appendFileSync(
-    process.env.GITHUB_ENV!,
-    `PROVIDER_ENV_FILE=${dest}\n` + `PROVIDER_ENV_NAMES=${names.join(" ")}\n`
-  );
+  appendFileSync(process.env.GITHUB_ENV!, `PROVIDER_ENV_FILE=${dest}\n`);
 }
 
 main(process.argv[2]!);

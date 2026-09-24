@@ -31,6 +31,7 @@ function fixture(t: { after: (fn: () => void) => void }) {
 const fs = require("node:fs");
 const args = process.argv.slice(2);
 fs.appendFileSync(process.env.DOCKER_LOG, JSON.stringify({args, key: process.env.ANTHROPIC_API_KEY}) + "\\n");
+if (args.includes("curl")) process.exit(Number(process.env.CURL_EXIT || 0));
 if (args[0] === "inspect") process.stdout.write("172.17.0.2\\n");
 if (args.includes("ask")) process.exit(Number(process.env.AGENT_EXIT || 0));
 `
@@ -66,10 +67,14 @@ if (args.includes("ask")) process.exit(Number(process.env.AGENT_EXIT || 0));
     AGENT_TIMEOUT: "1m",
   };
   function run(name: string) {
-    const out = spawnSync("bash", [join(root, "bin", name)], {
-      env,
-      encoding: "utf8",
-    });
+    const out = spawnSync(
+      process.execPath,
+      ["--experimental-strip-types", join(root, "bin", name)],
+      {
+        env,
+        encoding: "utf8",
+      }
+    );
     assert.equal(out.status, 0, out.stderr);
   }
   function calls(): { args: string[]; key?: string }[] {
@@ -84,8 +89,7 @@ if (args.includes("ask")) process.exit(Number(process.env.AGENT_EXIT || 0));
 
 test("workspace tools and the model client run in separate containers", (t) => {
   const { dir, run, calls } = fixture(t);
-  run("sandbox-up");
-  run("agent-up");
+  run("containers-up.ts");
   const started = calls().filter(({ args }) => args[0] === "run");
   assert.equal(started.length, 2);
   const workspace = started.find(({ args }) =>
@@ -110,9 +114,11 @@ test("workspace tools and the model client run in separate containers", (t) => {
       /docker.sock|GH_TOKEN|API_KEY|provider.env/
     );
   }
-  const serving = calls().find(({ args }) => args.includes("serve"))!.args;
+  const serving = calls().find(({ args }) =>
+    args.includes("/usr/local/bin/workspace-start")
+  )!.args;
   assert.ok(serving.includes("workflow-agent-sandbox"));
-  assert.ok(serving.includes("read_file,write_file,edit_file,glob,grep,shell"));
+  assert.equal(serving[0], "run");
   assert.ok(serving.includes("/src"));
   assert.ok(serving.some((arg) => arg.startsWith("GIT_SSH_COMMAND=")));
   assert.doesNotMatch(serving.join(" "), /GH_TOKEN|API_KEY|HTTPS_PROXY/);
@@ -120,7 +126,10 @@ test("workspace tools and the model client run in separate containers", (t) => {
   const mcp = JSON.parse(
     readFileSync(join(dir, "agent-config/mcp.json"), "utf8")
   );
-  assert.equal(mcp.servers.workspace.url, "http://172.17.0.2:8080/mcp");
+  assert.equal(
+    mcp.servers.workspace.url,
+    "http://workflow-agent-sandbox:8080/mcp"
+  );
   assert.match(
     mcp.servers.workspace.headers.Authorization,
     /^Bearer [a-f0-9]{64}$/
@@ -142,20 +151,24 @@ test("declared environments expose the static dev client read-only", (t) => {
     join(dir, "environments.json"),
     JSON.stringify({ rails: { image: "test", mount: "/src" } })
   );
-  run("sandbox-up");
+  run("containers-up.ts");
   const args = calls().find((call) => call.args[0] === "run")!.args;
   assert.ok(args.some((arg) => arg.endsWith("/bin/dev:/usr/local/bin/dev:ro")));
-  assert.ok(args.includes("SSH_PORT"));
-  assert.ok(args.includes("GATE_USER"));
+  assert.ok(args.includes("SSH_PORT=2222"));
+  assert.ok(args.includes("GATE_USER=runner"));
   assert.ok(calls().every((call) => !call.args.includes("bash")));
 });
 
 test("an unavailable workspace server stops startup", (t) => {
   const { env } = fixture(t);
-  const out = spawnSync("bash", [join(root, "bin/sandbox-up")], {
-    env: { ...env, CURL_EXIT: "7" },
-    encoding: "utf8",
-  });
+  const out = spawnSync(
+    process.execPath,
+    ["--experimental-strip-types", join(root, "bin/containers-up.ts")],
+    {
+      env: { ...env, CURL_EXIT: "7" },
+      encoding: "utf8",
+    }
+  );
   assert.equal(out.status, 1);
   assert.match(out.stderr, /workspace MCP server did not start/);
 });
