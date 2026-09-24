@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import {
   chmodSync,
+  mkdirSync,
   mkdtempSync,
   readFileSync,
   rmSync,
@@ -34,13 +35,13 @@ if (args[0] === "inspect") process.stdout.write("172.17.0.2\\n");
 if (args.includes("ask")) process.exit(Number(process.env.AGENT_EXIT || 0));
 `
   );
-  for (const name of ["curl", "sleep"]) {
+  for (const name of ["curl", "sleep", "sudo"]) {
     writeFileSync(
       join(dir, name),
       `#!/bin/sh\nexit ${name === "curl" ? '"${CURL_EXIT:-0}"' : "0"}\n`
     );
   }
-  for (const name of ["docker", "curl", "sleep"]) {
+  for (const name of ["docker", "curl", "sleep", "sudo"]) {
     chmodSync(join(dir, name), 0o755);
   }
   const env = {
@@ -94,7 +95,13 @@ test("workspace tools and the model client run in separate containers", (t) => {
     args.includes("workflow-agent-client")
   )!;
   assert.ok(workspace.args.includes(`${dir}/worktree:/src`));
-  assert.ok(!agent.args.includes("-v"));
+  assert.ok(
+    agent.args.includes(`${dir}/agent-config:/home/agent/.config/term-llm:ro`)
+  );
+  assert.ok(agent.args.includes(`${dir}/output:/output:rw`));
+  assert.ok(agent.args.includes(`${dir}/clientkey:/home/agent/.ssh/gate:ro`));
+  assert.ok(!agent.args.includes(`${dir}/worktree:/src`));
+  assert.ok(agent.args.includes("OUTPUT_DIR=/output"));
   for (const { args } of started) {
     assert.ok(!args.includes("-p"));
     assert.ok(!args.includes("--privileged"));
@@ -110,22 +117,22 @@ test("workspace tools and the model client run in separate containers", (t) => {
   assert.ok(serving.some((arg) => arg.startsWith("GIT_SSH_COMMAND=")));
   assert.doesNotMatch(serving.join(" "), /GH_TOKEN|API_KEY|HTTPS_PROXY/);
 
-  const mcp = JSON.parse(readFileSync(join(dir, "mcp.json"), "utf8"));
+  const mcp = JSON.parse(
+    readFileSync(join(dir, "agent-config/mcp.json"), "utf8")
+  );
   assert.equal(mcp.servers.workspace.url, "http://172.17.0.2:8080/mcp");
   assert.match(
     mcp.servers.workspace.headers.Authorization,
     /^Bearer [a-f0-9]{64}$/
   );
   assert.equal(mcp.servers.github.command, "ssh");
-  const copies = calls().filter(({ args }) => args[0] === "cp");
-  const configCopy = copies.find(({ args }) =>
-    args.includes(join(dir, "project-config.yaml"))
-  )!;
-  assert.match(configCopy.args[2]!, /^workflow-agent-client:/);
+  assert.equal(
+    readFileSync(join(dir, "agent-config/config.yaml"), "utf8"),
+    "default_provider: anthropic\n"
+  );
+  assert.ok(calls().every(({ args }) => args[0] !== "cp"));
   assert.ok(
-    !copies.some(({ args }) =>
-      /workflow-agent-sandbox:.*(?:config|skills)/.test(args[2] ?? "")
-    )
+    workspace.args.includes(`${dir}/clientkey:/home/agent/.ssh/gate:ro`)
   );
 });
 
@@ -140,7 +147,7 @@ test("an unavailable workspace server stops startup", (t) => {
 });
 
 for (const resume of [false, true]) {
-  test(`model credentials and results stay in the agent container (resume=${resume})`, (t) => {
+  test(`model credentials stay in the agent container and stale output is removed (resume=${resume})`, (t) => {
     const { dir, env, calls } = fixture(t);
     writeFileSync(
       join(dir, "agent.json"),
@@ -149,8 +156,9 @@ for (const resume of [false, true]) {
         home: "/home/agent",
       })
     );
-    writeFileSync(join(dir, "finish.json"), "stale reply");
-    writeFileSync(join(dir, "findings.jsonl"), "stale finding");
+    mkdirSync(join(dir, "output"));
+    writeFileSync(join(dir, "output", "finish.json"), "stale reply");
+    writeFileSync(join(dir, "output", "findings.jsonl"), "stale finding");
     const out = spawnSync(
       process.execPath,
       [
@@ -171,15 +179,14 @@ for (const resume of [false, true]) {
       invoked.args.join(" "),
       /GH_TOKEN|github-secret|model-secret|\/src|workflow-agent-sandbox/
     );
-    const copies = calls().filter(({ args }) => args[0] === "cp");
-    assert.deepEqual(
-      copies.map(({ args }) => args[1]),
-      [
-        "workflow-agent-client:/home/agent/finish.json",
-        "workflow-agent-client:/home/agent/findings.jsonl",
-      ]
+    assert.equal(calls().length, 1);
+    assert.throws(
+      () => readFileSync(join(dir, "output", "finish.json")),
+      /ENOENT/
     );
-    assert.throws(() => readFileSync(join(dir, "finish.json")), /ENOENT/);
-    assert.throws(() => readFileSync(join(dir, "findings.jsonl")), /ENOENT/);
+    assert.throws(
+      () => readFileSync(join(dir, "output", "findings.jsonl")),
+      /ENOENT/
+    );
   });
 }

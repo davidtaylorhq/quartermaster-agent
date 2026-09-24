@@ -110,7 +110,7 @@ The model client runs in its own container with the provider credentials. It cal
 
 Repository work happens in a separate sandbox. That container receives neither model nor GitHub credentials. It runs `term-llm serve mcp`, exposing only `read_file`, `write_file`, `edit_file`, `glob`, `grep`, and `shell`. The agent connects over Docker's private bridge using a per-run bearer token; the tool server has no published port.
 
-The agent container has no repository mount or Docker socket. It holds conversation state, the workflow's trusted review skill, and the completion hook that saves the reply. Both containers use the same runtime image, but have separate filesystems. Only the work sandbox mounts the checkout.
+The agent container has no repository mount or Docker socket. Its configuration and SSH gate key are mounted read-only. A separate writable output directory holds `finish.json` and `findings.jsonl`, which the runner reads directly. Conversation state stays inside the container. Both containers use the same runtime image, but have separate filesystems. Only the work sandbox mounts the checkout.
 
 GitHub credentials stay on the runner. Neither container receives them; access still goes through the GitHub read service and push gate.
 

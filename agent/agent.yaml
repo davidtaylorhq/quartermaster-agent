@@ -27,7 +27,7 @@ output_tool:
     additionalProperties: false
 
 on_complete: |
-  cat > "$HOME/finish.json"
+  cat > "${OUTPUT_DIR:?}/finish.json"
 
 max_turns: 60
 handover_mode: "light"

@@ -10,21 +10,12 @@ HOME_DIR=/home/agent
 
 log() { echo "[agent] $*" >&2; }
 
-log "booting $SANDBOX_IMAGE"
-docker run -d \
-  --name "$CONTAINER" \
-  --add-host "host.docker.internal:$BRIDGE_IP" \
-  "$SANDBOX_IMAGE" >/dev/null
-
-docker cp "$CLIENT_KEY" "$CONTAINER:$HOME_DIR/.ssh/gate"
-docker exec -u root "$CONTAINER" chown agent:agent "$HOME_DIR/.ssh/gate"
-docker exec -u root "$CONTAINER" chmod 600 "$HOME_DIR/.ssh/gate"
-docker exec -u root "$CONTAINER" install -d -o agent -g agent \
-  "$HOME_DIR/.config/term-llm/agents" "$HOME_DIR/.config/term-llm/skills"
-
-AGENT_TMP="$RUNNER_TEMP/agent"
-rm -rf "$AGENT_TMP"
+CONFIG_DIR="$RUNNER_TEMP/agent-config"
+OUTPUT_DIR="$RUNNER_TEMP/output"
+AGENT_TMP="$CONFIG_DIR/agents/workflow-agent"
+mkdir -p "$CONFIG_DIR/agents"
 cp -r "$AGENT_DIR" "$AGENT_TMP"
+cp -r "$AGENT_DIR/skills" "$CONFIG_DIR/skills"
 if [ "$(jq 'length' "$ENVIRONMENTS_JSON")" != 0 ]; then
   {
     echo
@@ -42,20 +33,28 @@ if [ "$(jq 'length' "$ENVIRONMENTS_JSON")" != 0 ]; then
     echo "The first command into an environment takes a few minutes while it starts; afterwards they are quick. Do not start one you have nothing to run in."
   } >> "$AGENT_TMP/system.md"
 fi
-docker cp "$AGENT_TMP/." "$CONTAINER:$HOME_DIR/.config/term-llm/agents/workflow-agent"
-docker cp "$AGENT_DIR/skills/." "$CONTAINER:$HOME_DIR/.config/term-llm/skills"
 sed -e "s#__KEY__#$HOME_DIR/.ssh/gate#" \
     -e "s#__SSH_PORT__#$SSH_PORT#" \
     -e "s#__GATE_USER__#$GATE_USER#" \
     "$AGENT_DIR/mcp.json" \
   | jq --slurpfile workspace "$RUNNER_TEMP/workspace-mcp.json" \
-    '.servers.workspace = $workspace[0]' > "$RUNNER_TEMP/mcp.json"
-chmod 600 "$RUNNER_TEMP/mcp.json"
-docker cp "$RUNNER_TEMP/mcp.json" "$CONTAINER:$HOME_DIR/.config/term-llm/mcp.json"
+    '.servers.workspace = $workspace[0]' > "$CONFIG_DIR/mcp.json"
+chmod 640 "$CONFIG_DIR/mcp.json"
 if [ -n "${TERM_LLM_CONFIG:-}" ] && [ -s "$TERM_LLM_CONFIG" ]; then
-  docker cp "$TERM_LLM_CONFIG" "$CONTAINER:$HOME_DIR/.config/term-llm/config.yaml"
+  cp "$TERM_LLM_CONFIG" "$CONFIG_DIR/config.yaml"
 fi
-docker exec -u root "$CONTAINER" chown -R agent:agent "$HOME_DIR/.config"
+sudo chown -R 1000:"$(id -g)" "$CONFIG_DIR"
+sudo install -d -o 1000 -g "$(id -g)" -m 2770 "$OUTPUT_DIR"
+
+log "booting $SANDBOX_IMAGE"
+docker run -d \
+  --name "$CONTAINER" \
+  --add-host "host.docker.internal:$BRIDGE_IP" \
+  -v "$CONFIG_DIR:$HOME_DIR/.config/term-llm:ro" \
+  -v "$CLIENT_KEY:$HOME_DIR/.ssh/gate:ro" \
+  -v "$OUTPUT_DIR:/output:rw" \
+  -e OUTPUT_DIR=/output \
+  "$SANDBOX_IMAGE" >/dev/null
 
 jq -n --arg container "$CONTAINER" --arg home "$HOME_DIR" \
   '{container: $container, home: $home}' > "$RUNNER_TEMP/agent.json"

@@ -2,9 +2,11 @@ import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
 import {
+  chmodSync,
   cpSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   rmSync,
   writeFileSync,
@@ -19,14 +21,19 @@ const root = join(import.meta.dirname, "..");
 
 // eslint-disable-next-line qunit/no-test-expect-argument -- node:test options
 test(
-  "the pinned term-llm uses remote workspace tools and keeps review output locally",
+  "the pinned term-llm works with read-only config and a separate output directory",
   { skip: !binary, timeout: 60000 },
   async (t) => {
     const dir = mkdtempSync(join(tmpdir(), "term-mcp-"));
-    t.after(() => rmSync(dir, { recursive: true, force: true }));
+    t.after(() => {
+      configPermissions(true);
+      rmSync(dir, { recursive: true, force: true });
+    });
     const home = join(dir, "agent");
     const workspace = join(dir, "workspace");
     const serverHome = join(dir, "server");
+    const outputDir = join(dir, "output");
+    mkdirSync(outputDir);
     const config = join(home, ".config/term-llm");
     mkdirSync(config, { recursive: true });
     mkdirSync(workspace);
@@ -228,6 +235,18 @@ test(
       `default_provider: anthropic\nproviders:\n  anthropic:\n    base_url: http://127.0.0.1:${apiPort}\n    model: claude-sonnet-4-5\n`
     );
 
+    function configPermissions(writable: boolean, path = config) {
+      chmodSync(path, writable ? 0o755 : 0o555);
+      for (const entry of readdirSync(path, { withFileTypes: true })) {
+        if (entry.isDirectory()) {
+          configPermissions(writable, join(path, entry.name));
+        } else {
+          chmodSync(join(path, entry.name), writable ? 0o755 : 0o555);
+        }
+      }
+    }
+    configPermissions(false);
+
     for (const resume of [false, true]) {
       const child = spawn(
         binary!,
@@ -248,7 +267,12 @@ test(
         ],
         {
           cwd: home,
-          env: { ...baseEnv, HOME: home, ANTHROPIC_API_KEY: "model-secret" },
+          env: {
+            ...baseEnv,
+            HOME: home,
+            OUTPUT_DIR: outputDir,
+            ANTHROPIC_API_KEY: "model-secret",
+          },
           stdio: ["ignore", "pipe", "pipe"],
         }
       );
@@ -262,7 +286,7 @@ test(
       const [code] = await once(child, "close");
       assert.equal(code, 0, output + failures.join("\n"));
       assert.deepEqual(
-        JSON.parse(readFileSync(join(home, "finish.json"), "utf8")),
+        JSON.parse(readFileSync(join(outputDir, "finish.json"), "utf8")),
         { reply: resume ? "Follow-up through MCP" : "Finished through MCP" }
       );
     }
@@ -273,7 +297,10 @@ test(
       "goodbye\n"
     );
     assert.throws(() => readFileSync(join(home, "example.txt")), /ENOENT/);
-    const findings = readFileSync(join(home, "findings.jsonl"), "utf8").trim();
+    const findings = readFileSync(
+      join(outputDir, "findings.jsonl"),
+      "utf8"
+    ).trim();
     assert.deepEqual(JSON.parse(findings), {
       path: "example.txt",
       line: 1,

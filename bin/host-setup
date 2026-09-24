@@ -157,6 +157,8 @@ if ! sudo /usr/sbin/sshd -f "$STATE/sshd_config" -E "$RUNNER_TEMP/sshd.log"; the
   exit 1
 fi
 
+sudo install -o 1000 -m 0400 "$STATE/clientkey" "$RUNNER_TEMP/gate-key"
+
 step "gate is listening on:"
 ss -tln | grep ":$SSH_PORT" >&2 || echo "[host] nothing on $SSH_PORT" >&2
 
@@ -164,7 +166,7 @@ ss -tln | grep ":$SSH_PORT" >&2 || echo "[host] nothing on $SSH_PORT" >&2
   echo "BRIDGE_IP=$bridge"
   echo "SSH_PORT=$SSH_PORT"
   echo "FORWARD_PORT=$FORWARD_PORT"
-  echo "CLIENT_KEY=$STATE/clientkey"
+  echo "CLIENT_KEY=$RUNNER_TEMP/gate-key"
   echo "GATE_USER=$(id -un)"
   echo "WORKTREE=$WORKTREE"
 } >> "$GITHUB_ENV"

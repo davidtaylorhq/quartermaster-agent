@@ -28,11 +28,8 @@ docker run -d \
   --name "$CONTAINER" \
   --add-host "host.docker.internal:$BRIDGE_IP" \
   -v "$WORKTREE:/src" \
+  -v "$CLIENT_KEY:$HOME_DIR/.ssh/gate:ro" \
   "$SANDBOX_IMAGE" >/dev/null
-
-docker cp "$CLIENT_KEY" "$CONTAINER:$HOME_DIR/.ssh/gate"
-docker exec -u root "$CONTAINER" chown agent:agent "$HOME_DIR/.ssh/gate"
-docker exec -u root "$CONTAINER" chmod 600 "$HOME_DIR/.ssh/gate"
 
 # Anything needing more than git runs in a named development environment.
 if [ "$(jq 'length' "$ENVIRONMENTS_JSON")" != 0 ]; then

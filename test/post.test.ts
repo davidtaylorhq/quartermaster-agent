@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -30,6 +30,7 @@ before(async () => {
 
   temp = mkdtempSync(join(tmpdir(), "post-"));
   process.env.RUNNER_TEMP = temp;
+  mkdirSync(join(temp, "output"));
   process.env.GITHUB_REPOSITORY = "o/p";
   process.env.ISSUE_NUMBER = "7";
   process.env.GITHUB_API_URL = `http://127.0.0.1:${(api.address() as { port: number }).port}`;
@@ -45,7 +46,7 @@ beforeEach(() => {
   sent = [];
   reject = new Set();
   writeFileSync(
-    join(temp, "finish.json"),
+    join(temp, "output", "finish.json"),
     JSON.stringify({ reply: "the answer" })
   );
   writeFileSync(join(temp, "relay.pushed"), "abc123\n");
@@ -54,7 +55,7 @@ beforeEach(() => {
 
 test("a refused review still delivers the answer", async () => {
   writeFileSync(
-    join(temp, "findings.jsonl"),
+    join(temp, "output", "findings.jsonl"),
     '{"path":"a.rb","line":9000,"body":"a point"}\n'
   );
   reject.add("/reviews");
@@ -72,7 +73,7 @@ test("a refused review still delivers the answer", async () => {
 test("line comments on an issue go in the reply, not to the reviews endpoint", async () => {
   process.env.IS_PULL_REQUEST = "no";
   writeFileSync(
-    join(temp, "findings.jsonl"),
+    join(temp, "output", "findings.jsonl"),
     '{"path":"a.rb","line":1,"body":"a point"}\n'
   );
 
@@ -91,7 +92,7 @@ test("line comments on an issue go in the reply, not to the reviews endpoint", a
 
 test("a findings line of null is skipped, not thrown over", async () => {
   writeFileSync(
-    join(temp, "findings.jsonl"),
+    join(temp, "output", "findings.jsonl"),
     'null\n{"path":"a.rb","line":1,"body":"a point"}\n'
   );
 

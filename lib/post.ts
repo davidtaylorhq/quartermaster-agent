@@ -1,8 +1,9 @@
 // Publish everything a turn produced, as one review, once. The sandbox holds
 // no GitHub credential, so it leaves its reply and line comments here.
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { request } from "./github.ts";
+import { readOutput } from "./output.ts";
 
 // On the reply only: on every line comment it would be noise.
 const FOOTER =
@@ -19,48 +20,44 @@ function sign(body: string): string {
 
 type Finding = { path: string; line: number; side: "RIGHT"; body: string };
 
-function readFindings(path: string): Finding[] {
+function readFindings(contents: string): Finding[] {
   const out: Finding[] = [];
-  readFileSync(path, "utf8")
-    .split("\n")
-    .forEach((raw, i) => {
-      const line = raw.trim();
-      if (!line) {
-        return;
-      }
-      let f: Record<string, unknown> | null;
-      try {
-        f = JSON.parse(line);
-      } catch {
-        console.error(`ignoring unreadable line comment on line ${i + 1}`);
-        return;
-      }
-      if (
-        f !== null &&
-        typeof f.path === "string" &&
-        typeof f.line === "number" &&
-        typeof f.body === "string"
-      ) {
-        out.push({ path: f.path, line: f.line, side: "RIGHT", body: f.body });
-      } else {
-        console.error(`ignoring incomplete line comment on line ${i + 1}`);
-      }
-    });
+  contents.split("\n").forEach((raw, i) => {
+    const line = raw.trim();
+    if (!line) {
+      return;
+    }
+    let f: Record<string, unknown> | null;
+    try {
+      f = JSON.parse(line);
+    } catch {
+      console.error(`ignoring unreadable line comment on line ${i + 1}`);
+      return;
+    }
+    if (
+      f !== null &&
+      typeof f.path === "string" &&
+      typeof f.line === "number" &&
+      typeof f.body === "string"
+    ) {
+      out.push({ path: f.path, line: f.line, side: "RIGHT", body: f.body });
+    } else {
+      console.error(`ignoring incomplete line comment on line ${i + 1}`);
+    }
+  });
   return out;
 }
 
 export async function publish(): Promise<void> {
-  const finish = join(temp, "finish.json");
-  if (!existsSync(finish)) {
+  const finish = readOutput("finish.json");
+  if (finish === undefined) {
     console.error("the agent never finished; nothing to post");
     throw new Error("nothing to post");
   }
-  const reply = (
-    (JSON.parse(readFileSync(finish, "utf8")).reply as string) ?? ""
-  ).trim();
+  const reply = ((JSON.parse(finish).reply as string) ?? "").trim();
 
-  const findingsFile = join(temp, "findings.jsonl");
-  const comments = existsSync(findingsFile) ? readFindings(findingsFile) : [];
+  const findings = readOutput("findings.jsonl");
+  const comments = findings === undefined ? [] : readFindings(findings);
 
   // Only a pull request has a diff to hang them on.
   if (comments.length > 0 && process.env.IS_PULL_REQUEST === "yes") {

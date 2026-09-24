@@ -13,16 +13,7 @@ export function ask(prompt: string, resume: boolean): number {
 
   // Last turn's output must not be mistaken for this one's.
   for (const leftover of ["finish.json", "findings.jsonl"]) {
-    spawnSync("docker", [
-      "exec",
-      "-u",
-      "agent",
-      agent.container,
-      "rm",
-      "-f",
-      `${agent.home}/${leftover}`,
-    ]);
-    rmSync(join(temp, leftover), { force: true });
+    rmSync(join(temp, "output", leftover), { force: true });
   }
 
   const term = [
@@ -64,18 +55,5 @@ export function ask(prompt: string, resume: boolean): number {
     { stdio: ["ignore", "inherit", "inherit"] }
   );
 
-  for (const produced of ["finish.json", "findings.jsonl"]) {
-    spawnSync(
-      "docker",
-      [
-        "cp",
-        `${agent.container}:${agent.home}/${produced}`,
-        join(temp, produced),
-      ],
-      {
-        stdio: "ignore",
-      }
-    );
-  }
   return run.status ?? 1;
 }
