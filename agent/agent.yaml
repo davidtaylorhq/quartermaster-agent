@@ -1,17 +1,15 @@
 name: workflow-agent
 description: "Answers GitHub comments, reviews code, and authors changes"
 time_grounding: true
-agents_md: "true"
+agents_md: "false"
 skills: "all"
 
 tools:
-  enabled: [read_file, glob, grep, write_file, edit_file, shell]
+  enabled: [update_plan]
 
 mcp:
   - name: github
-
-shell:
-  auto_run: true
+  - name: workspace
 
 # The run ends when this is called, and only then. Nothing the agent does
 # reaches GitHub on its own: line comments are held, this is the single reply,

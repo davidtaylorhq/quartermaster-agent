@@ -1,19 +1,17 @@
 #!/bin/bash
-# Stand up everything the sandbox is allowed to reach. Every credential stays
-# on this side of it.
+# Stand up the GitHub services the containers are allowed to reach.
 set -euo pipefail
 
 step() { echo "[host] $*" >&2; }
 
 : "${RUNNER_TEMP:?}" "${HEAD_REF:?}" "${GITHUB_REPOSITORY:?}"
-: "${GH_TOKEN:?}" "${MODEL_ROUTES:?}"
+: "${GH_TOKEN:?}"
 
 STATE="$HOME/.workflow-agent"
 RELAY="$RUNNER_TEMP/relay.git"
 PUSHED="$RUNNER_TEMP/relay.pushed"
 SSH_PORT=2222
 FORWARD_PORT=2223
-MODEL_PORT=2224
 MCP_IMAGE=ghcr.io/github/github-mcp-server:v1.12.2
 WORKTREE=$RUNNER_TEMP/worktree
 
@@ -115,29 +113,6 @@ install -m 0644 "$ENVIRONMENTS_JSON" "$STATE/environments.json"
 step "forwarding reads to GitHub on $bridge:$FORWARD_PORT"
 nohup "$FORWARD_SCRIPT" "$bridge" "$FORWARD_PORT" > "$RUNNER_TEMP/forward.log" 2>&1 &
 
-# ---------------------------------------------------------------- the model
-# The sandbox is given a placeholder in place of the model credential. This
-# puts the real one back on its way out.
-# A provider term-llm reaches by running a command cannot be pointed back
-# here, so its connection is terminated here instead, under our own name.
-if [ -n "${MODEL_TUNNEL_HOSTS:-}" ]; then
-  step "minting a certificate for $MODEL_TUNNEL_HOSTS"
-  san=$(printf 'DNS:%s,' $MODEL_TUNNEL_HOSTS)
-  openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj "/CN=$BOT_NAME" \
-    -keyout "$STATE/ca.key" -out "$STATE/ca.crt" 2>/dev/null
-  openssl req -newkey rsa:2048 -nodes -subj "/CN=model" \
-    -keyout "$STATE/model.key" -out "$STATE/model.csr" 2>/dev/null
-  openssl x509 -req -in "$STATE/model.csr" -days 1 -CAcreateserial \
-    -CA "$STATE/ca.crt" -CAkey "$STATE/ca.key" -out "$STATE/model.crt" \
-    -extfile <(printf 'subjectAltName=%s\nbasicConstraints=CA:FALSE\n' "${san%,}") \
-    2>/dev/null
-  chmod 600 "$STATE/ca.key" "$STATE/model.key"
-fi
-
-step "serving the model on $bridge:$MODEL_PORT"
-nohup "$MODEL_SCRIPT" "$bridge" "$MODEL_PORT" "$MODEL_ROUTES" \
-  "$STATE/model.key" "$STATE/model.crt" > "$RUNNER_TEMP/model.log" 2>&1 &
-
 # --------------------------------------------------------------- the ssh gate
 step "generating keys"
 ssh-keygen -q -t ed25519 -N '' -f "$STATE/hostkey"
@@ -189,8 +164,6 @@ ss -tln | grep ":$SSH_PORT" >&2 || echo "[host] nothing on $SSH_PORT" >&2
   echo "BRIDGE_IP=$bridge"
   echo "SSH_PORT=$SSH_PORT"
   echo "FORWARD_PORT=$FORWARD_PORT"
-  echo "MODEL_PORT=$MODEL_PORT"
-  echo "MODEL_CA=$STATE/ca.crt"
   echo "CLIENT_KEY=$STATE/clientkey"
   echo "GATE_USER=$(id -un)"
   echo "WORKTREE=$WORKTREE"

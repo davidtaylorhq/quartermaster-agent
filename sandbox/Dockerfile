@@ -1,11 +1,11 @@
-# The sandbox the agent works in. The same on every run, so it is built once.
+# Shared runtime for the isolated model client and workspace tool server.
 FROM debian:stable-slim
 
 ARG TERM_LLM_VERSION=v0.9.55
 
 RUN apt-get update -qq \
  && apt-get install -y -qq --no-install-recommends \
-      git openssh-client ca-certificates curl jq \
+      git openssh-client ca-certificates curl jq ripgrep \
  && rm -rf /var/lib/apt/lists/*
 
 # uid 1000 so the work tree is readable from the development environment too.

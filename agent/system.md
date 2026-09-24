@@ -34,7 +34,9 @@ Only the most recent comments are there, and review comments are not. Read the r
 
 ## Changing code
 
-Edit files, run commands, use git. You are in a throwaway container with the repository checked out at `/src`; work there however you like.
+Edit files, run commands, use git through the workspace MCP tools. They run in a separate throwaway container with the repository checked out at `/src`. Relative paths and shell commands start there.
+
+Before working, read `/src/AGENTS.md` if it exists, and any more specific `AGENTS.md` files for the directories you touch. Discover relevant repository skills in `.skills`, `.agents/skills`, or locations named by the repository instructions, and read their `SKILL.md` files through the workspace tools. Run any bundled scripts through the workspace shell; repository skills are instructions, not locally registered tools.
 
 Write the commit message the way the repository writes them.
 

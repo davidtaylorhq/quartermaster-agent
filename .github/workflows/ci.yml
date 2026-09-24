@@ -17,6 +17,12 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Install the image's term-llm version
+        run: |
+          version=$(sed -n 's/^ARG TERM_LLM_VERSION=//p' sandbox/Dockerfile)
+          curl -fsSL "https://raw.githubusercontent.com/samsaffron/term-llm/$version/install.sh" \
+            | sh -s -- --version "$version"
+          echo "TERM_LLM_BINARY=$HOME/.local/bin/term-llm" >> "$GITHUB_ENV"
 
       - parallel:
           - name: Types
@@ -38,5 +44,5 @@ jobs:
           - name: Shell
             if: ${{ !cancelled() }}
             run: |
-              for f in bin/host-setup bin/sandbox-up bin/dev-boot; do bash -n "$f"; done
+              for f in bin/host-setup bin/sandbox-up bin/agent-up bin/dev-boot; do bash -n "$f"; done
               sh -n bin/host-gate

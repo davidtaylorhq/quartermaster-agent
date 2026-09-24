@@ -1,17 +1,13 @@
 #!/bin/bash
-# Build the sandbox the agent works in: git, ssh and term-llm. The work tree is
-# already there, and the development environment mounts the same directory.
+# Start the workspace tools in a container with no model or GitHub credentials.
 set -Eeuo pipefail
 
 : "${RUNNER_TEMP:?}" "${BRIDGE_IP:?}" "${SSH_PORT:?}"
-: "${CLIENT_KEY:?}" "${AGENT_DIR:?}"
+: "${CLIENT_KEY:?}"
 : "${GATE_USER:?}" "${SANDBOX_IMAGE:?}" "${WORKTREE:?}"
-: "${FORWARD_PORT:?}" "${GITHUB_REPOSITORY:?}" "${MODEL_PORT:?}"
-
+: "${FORWARD_PORT:?}" "${GITHUB_REPOSITORY:?}"
 
 CONTAINER=workflow-agent-sandbox
-SKILLS_DIR="$AGENT_DIR/skills"
-MCP_TEMPLATE="$AGENT_DIR/mcp.json"
 HOME_DIR=/home/agent
 SSH_OPTS="-i $HOME_DIR/.ssh/gate -p $SSH_PORT -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
 
@@ -27,46 +23,13 @@ in_sandbox() {
   docker exec -u agent -w /src -e HOME="$HOME_DIR" "$CONTAINER" "$@"
 }
 
-# A provider reached by running a command speaks to the runner instead, which
-# holds its credential. Reads of the repository stay on plain http, so only
-# https is sent that way.
-tunnel=()
-if [ -n "${MODEL_TUNNEL_HOSTS:-}" ]; then
-  tunnel=(
-    -e "HTTPS_PROXY=http://host.docker.internal:$MODEL_PORT"
-    -e "https_proxy=http://host.docker.internal:$MODEL_PORT"
-    -e "NO_PROXY=localhost,127.0.0.1,host.docker.internal"
-    -e "no_proxy=localhost,127.0.0.1,host.docker.internal"
-    -e "SSL_CERT_FILE=/usr/local/share/qm-bundle.crt"
-    -e "NODE_EXTRA_CA_CERTS=/usr/local/share/qm-ca.crt"
-  )
-fi
-
 log "booting $SANDBOX_IMAGE"
 docker run -d \
   --name "$CONTAINER" \
   --add-host "host.docker.internal:$BRIDGE_IP" \
   -v "$WORKTREE:/src" \
-  "${tunnel[@]}" \
   "$SANDBOX_IMAGE" >/dev/null
 
-if [ -n "${MODEL_TUNNEL_HOSTS:-}" ]; then
-  log "trusting the runner for $MODEL_TUNNEL_HOSTS"
-  docker cp "$MODEL_CA" "$CONTAINER:/usr/local/share/qm-ca.crt"
-  docker exec -u root "$CONTAINER" bash -c \
-    'cat /etc/ssl/certs/ca-certificates.crt /usr/local/share/qm-ca.crt \
-       > /usr/local/share/qm-bundle.crt'
-fi
-
-docker exec -u root -e STRIP="${PROVIDER_ENV_NAMES:-}" "$CONTAINER" bash -c '
-  {
-    echo "#!/bin/sh"
-    printf "exec env"
-    for name in $STRIP; do printf " -u %s" "$name"; done
-    echo " /bin/bash \"\$@\""
-  } > /usr/local/bin/qm-shell
-  chmod 0755 /usr/local/bin/qm-shell
-'
 docker cp "$CLIENT_KEY" "$CONTAINER:$HOME_DIR/.ssh/gate"
 docker exec -u root "$CONTAINER" chown agent:agent "$HOME_DIR/.ssh/gate"
 docker exec -u root "$CONTAINER" chmod 600 "$HOME_DIR/.ssh/gate"
@@ -101,57 +64,39 @@ in_sandbox git remote set-url origin \
 in_sandbox git remote set-url --push origin \
   "ssh://$GATE_USER@host.docker.internal/relay.git"
 
-log "installing the agent"
-docker exec -u root "$CONTAINER" install -d -o agent -g agent \
-  "$HOME_DIR/.config/term-llm/agents" "$HOME_DIR/.config/term-llm/skills"
-AGENT_TMP="$RUNNER_TEMP/agent"
-rm -rf "$AGENT_TMP"
-cp -r "$AGENT_DIR" "$AGENT_TMP"
-if [ "$(jq 'length' "$ENVIRONMENTS_JSON")" != 0 ]; then
-  {
-    echo
-    echo "## Development environments"
-    echo
-    echo "Commands needing more than git run in one of these:"
-    echo
-    jq -r 'to_entries[] | "    \(.key) — \(.value.description)"' "$ENVIRONMENTS_JSON"
-    echo
-    echo "Name the one you want:"
-    echo
-    jq -r 'to_entries[0] | "    dev \(.key) <command>"' "$ENVIRONMENTS_JSON"
-    echo
-    echo "Nothing runs in the sandbox itself, so a command on its own fails: there is no runtime for it there. Commands run at the environment's mount point."
-    echo
-    echo "The first command into an environment takes a few minutes while it starts; afterwards they are quick. Do not start one you have nothing to run in."
-  } >> "$AGENT_TMP/system.md"
-fi
-docker cp "$AGENT_TMP/." "$CONTAINER:$HOME_DIR/.config/term-llm/agents/workflow-agent"
-docker cp "$SKILLS_DIR/." "$CONTAINER:$HOME_DIR/.config/term-llm/skills"
-sed -e "s#__KEY__#$HOME_DIR/.ssh/gate#" \
-    -e "s#__SSH_PORT__#$SSH_PORT#" \
-    -e "s#__GATE_USER__#$GATE_USER#" \
-    "$MCP_TEMPLATE" > "$RUNNER_TEMP/mcp.json"
-docker cp "$RUNNER_TEMP/mcp.json" "$CONTAINER:$HOME_DIR/.config/term-llm/mcp.json"
-if [ -n "${TERM_LLM_CONFIG:-}" ] && [ -s "$TERM_LLM_CONFIG" ]; then
-  log "installing the project's term-llm configuration"
-  docker cp "$TERM_LLM_CONFIG" "$CONTAINER:$HOME_DIR/.config/term-llm/config.yaml"
-fi
+log "starting the workspace MCP server"
+token=$(openssl rand -hex 32)
+echo "::add-mask::$token"
+docker exec -d -u agent -w /src \
+  -e HOME="$HOME_DIR" \
+  -e "GIT_SSH_COMMAND=ssh $SSH_OPTS" \
+  "$CONTAINER" "$HOME_DIR/.local/bin/term-llm" serve mcp \
+  --tools read_file,write_file,edit_file,glob,grep,shell \
+  --host 0.0.0.0 --port 8080 --token "$token" --yolo
 
-docker exec -u root "$CONTAINER" chown -R agent:agent "$HOME_DIR/.config"
-
-# The sandbox holds a placeholder, so its model requests have to come back
-# past the runner for the real key to be put in.
-for slot in ${MODEL_BEHIND_PROXY:-}; do
-  log "pointing $slot at the model proxy"
-  in_sandbox "$HOME_DIR/.local/bin/term-llm" config set \
-    "providers.$slot.base_url" "http://host.docker.internal:$MODEL_PORT/$slot"
+address=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$CONTAINER")
+url="http://$address:8080/mcp"
+ready=false
+for attempt in {1..30}; do
+  if curl --silent --fail --output /dev/null \
+    -H "Authorization: Bearer $token" \
+    -H 'Content-Type: application/json' \
+    -H 'Accept: application/json, text/event-stream' \
+    --max-time 2 \
+    --data '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"workflow-agent","version":"1"}}}' \
+    "$url"; then
+    ready=true
+    break
+  fi
+  sleep 1
 done
+if [ "$ready" != true ]; then
+  log "workspace MCP server did not start"
+  exit 1
+fi
 
+jq -n --arg url "$url" --arg token "$token" \
+  '{type: "http", url: $url, headers: {Authorization: ("Bearer " + $token)}}' \
+  > "$RUNNER_TEMP/workspace-mcp.json"
+chmod 600 "$RUNNER_TEMP/workspace-mcp.json"
 log "sandbox ready"
-cat > "$RUNNER_TEMP/sandbox.json" <<JSON
-{
-  "container": "$CONTAINER",
-  "home": "$HOME_DIR",
-  "sshOptions": "$SSH_OPTS"
-}
-JSON

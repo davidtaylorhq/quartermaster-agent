@@ -111,7 +111,6 @@ jobs:
       PROVIDER: ${{ inputs.provider }}
       AGENT_DIR: ${{ github.workspace }}/workflow-agent/agent
       FORWARD_SCRIPT: ${{ github.workspace }}/workflow-agent/bin/git-forward.ts
-      MODEL_SCRIPT: ${{ github.workspace }}/workflow-agent/bin/inference-proxy.ts
       TERM_LLM_CONFIG: ${{ inputs.term-llm-config && format('{0}/project/{1}', github.workspace, inputs.term-llm-config) || '' }}
       GITHUB_TOOLSETS: pull_requests,issues
       HAS_APP: ${{ secrets.app-id != '' }}
@@ -277,7 +276,7 @@ jobs:
         if: steps.seen.outputs.ours == 'true'
         env:
           PROVIDER_ENV: ${{ secrets.provider-env }}
-        run: workflow-agent/bin/provider-env.ts "$RUNNER_TEMP/provider.env" "$RUNNER_TEMP/model-routes.json"
+        run: workflow-agent/bin/provider-env.ts "$RUNNER_TEMP/provider.env"
       - name: Say we are on it
         if: steps.seen.outputs.ours == 'true'
         id: ack
@@ -311,6 +310,7 @@ jobs:
         if: steps.seen.outputs.ours == 'true'
         run: |
           workflow-agent/bin/sandbox-up
+          workflow-agent/bin/agent-up
           workflow-agent/bin/converse.ts first
       - name: Answer anything that follows
         if: steps.seen.outputs.ours == 'true'

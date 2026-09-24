@@ -106,19 +106,13 @@ term-llm also reads `op://` for 1Password, `file://`, `srv://` and `$(...)` in a
 
 They are masked before they reach a log, never written into the docker command line, and kept out of `$GITHUB_ENV`.
 
-A provider the runner can stand in front of never has its key in the sandbox at all. The sandbox carries a placeholder, and the runner puts the real key back on the way out. There are two ways it stands in front.
+The model client runs in its own container with the provider credentials. It calls providers directly, including the Claude CLI for subscriptions. Provider URLs and TLS keep their normal behaviour.
 
-The first is over HTTP. The provider's `base_url` points at the runner, and a proxy there forwards what arrives. Anthropic works this way.
+Repository work happens in a separate sandbox. That container receives neither model nor GitHub credentials. It runs `term-llm serve mcp`, exposing only `read_file`, `write_file`, `edit_file`, `glob`, `grep`, and `shell`. The agent connects over Docker's private bridge using a per-run bearer token; the tool server has no published port.
 
-The second is a tunnel, for a provider term-llm reaches by running a command. No configuration can redirect one of those, so the sandbox trusts a certificate the runner mints for the run, and `HTTPS_PROXY` sends the connection back to be terminated there. A Claude subscription works this way, through the Claude CLI. The command still speaks for itself and is not changed; all that moves is where its credential is held.
+The agent container has no repository mount or Docker socket. It holds conversation state, the workflow's trusted review skill, and the completion hook that saves the reply. Both containers use the same runtime image, but have separate filesystems. Only the work sandbox mounts the checkout.
 
-Only the hosts a tunnelled provider needs are accepted. Anything else is refused, so this is not a way out of the sandbox.
-
-The tunnel does mean the runner can read the sandbox's traffic to those hosts. Reads of the repository go over plain HTTP to the forwarder, so they never take that path.
-
-term-llm honours `base_url` for only some of its providers. Any other provider still gets its key, and it reaches term-llm's own environment, because a provider that shells out reads it from there. Every shell command the agent runs is stripped of it: term-llm starts each one with `$SHELL`, which is a shell of ours that drops those names first.
-
-What remains for those is that the agent's own process holds the key. Nothing checks what it writes, and there is no egress filtering, so a determined prompt injection could put it in a reply or send it somewhere.
+GitHub credentials stay on the runner. Neither container receives them; access still goes through the GitHub read service and push gate.
 
 ## Running tests and linters
 
@@ -177,7 +171,7 @@ With no such file the agent reads, writes and answers, and the gate refuses to r
 
 ## How it works
 
-The agent runs in a container holding no GitHub credential. Everything it can ask the runner for goes through an SSH gate with a fixed list of commands, and anything else is refused:
+The model client and workspace tools run in separate containers, neither holding a GitHub credential. Everything it can ask the runner for goes through an SSH gate with a fixed list of commands, and anything else is refused:
 
 | | said by |
 |---|---|
@@ -185,7 +179,7 @@ The agent runs in a container holding no GitHub credential. Everything it can as
 | `mcp` | term-llm, to reach the GitHub MCP server |
 | `git-receive-pack` | git, when the agent runs `git push` |
 
-The last is not a command the agent writes. It runs `git push` and git speaks the protocol; the gate's hooks decide what reaches the branch. Reads do not go through the gate at all: `origin` fetches from a forwarder on the runner that allows two paths, both of them `upload-pack`, and adds the credential the container has not got. The model credential is the exception to all of this, and is in the container.
+The last is not a command the agent writes. It runs `git push` and git speaks the protocol; the gate's hooks decide what reaches the branch. Reads do not go through the gate at all: `origin` fetches from a forwarder on the runner that allows two paths, both of them `upload-pack`, and adds the credential the container has not got. The model credential is held only by the agent container; the work sandbox cannot read it.
 
 - **Pushing.** The container pushes to a bare repository on the runner. A hook there refuses every ref but the pull request's own branch, and a second hook forwards what it accepts to GitHub using a token the container never sees. `GITHUB_TOKEN` permissions cannot be scoped to a ref, so this is the only way to say "this branch and no other".
 - **Reading GitHub.** A read-only GitHub MCP server, started on the runner, reached through the gate.
@@ -202,5 +196,9 @@ Association is not permission. `MEMBER` means a member of the organisation and `
 - **The runner has to be a fresh one.** State goes in fixed places: one directory under `HOME`, fixed ports, fixed container names, and nothing is torn down at the end. A second run on the same self-hosted machine finds the first one's keys and containers.
 
 - **No egress filtering.** The container can reach the whole internet. A prompt injection in a pull request cannot steal a GitHub token, because there isn't one, but it can talk to anything.
-- **The model credential is inside the container.** The GitHub token is not, but the key that pays for inference is. Stripping it from the agent's shell commands is not the same as it not being there.
-- **A project's own instructions are whatever `AGENTS.md` says.** There is no way to add to the agent's prompt beyond that file and the skills this workflow ships.
+- **The agent container holds the model credential.** Repository tools run elsewhere, but there is no OS restriction on subprocesses inside the agent container. Its configuration, provider clients, and workflow-owned scripts must remain trusted.
+- **Repository instructions are read through tools.** The agent is instructed to read `AGENTS.md` and relevant `SKILL.md` files in the work sandbox. Repository skills are not automatically registered in the agent container; their scripts can be run through the workspace shell.
+
+## Developing this workflow
+
+Run `npm test`, `npm run check`, and `npm run lint`. To include the MCP integration test, set `TERM_LLM_BINARY` to the term-llm binary matching `TERM_LLM_VERSION` in `sandbox/Dockerfile`. CI installs that version automatically. The test runs a real tool server and agent against a scripted model endpoint, without provider or GitHub credentials, and checks workspace operations, review findings, and session resume.

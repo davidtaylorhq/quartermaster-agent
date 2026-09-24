@@ -2,27 +2,16 @@
 // Answer what is waiting (`first`), or hold the sandbox open for whatever
 // comes next (`followups`).
 import { spawn, spawnSync } from "node:child_process";
-import { readFileSync, rmSync, writeFileSync } from "node:fs";
+import { writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { ask } from "../lib/agent.ts";
 import { claim } from "../lib/claim.ts";
-import { load } from "../lib/credentials.ts";
 import { render, waiting } from "../lib/mentions.ts";
 import { publish } from "../lib/post.ts";
 import { again, first, type Situation } from "../lib/prompt.ts";
 import { thread } from "../lib/thread.ts";
 
 const temp = process.env.RUNNER_TEMP!;
-const sandbox = JSON.parse(
-  readFileSync(join(temp, "sandbox.json"), "utf8")
-) as {
-  container: string;
-  home: string;
-  sshOptions: string;
-};
-
-// docker passes credentials by name, so they must be in this process too.
-const credentials = load(process.env.PROVIDER_ENV_FILE, process.env);
-
 function progress(...args: string[]) {
   const lock = join(temp, "progress.lock");
   spawnSync("flock", [lock, process.env.PROGRESS_SCRIPT!, ...args], {
@@ -44,80 +33,6 @@ const devLog = spawn(
     stdio: ["ignore", "inherit", "ignore"],
   }
 );
-
-function ask(prompt: string, resume: boolean): number {
-  // Last turn's output must not be mistaken for this one's.
-  for (const leftover of ["finish.json", "findings.jsonl"]) {
-    spawnSync("docker", [
-      "exec",
-      "-u",
-      "agent",
-      sandbox.container,
-      "rm",
-      "-f",
-      `${sandbox.home}/${leftover}`,
-    ]);
-    rmSync(join(temp, leftover), { force: true });
-  }
-
-  const term = [
-    `${sandbox.home}/.local/bin/term-llm`,
-    "ask",
-    "--agent",
-    "workflow-agent",
-    ...(process.env.PROVIDER ? ["--provider", process.env.PROVIDER] : []),
-    "--session-db",
-    `${sandbox.home}/session.db`,
-    ...(resume ? ["--resume"] : []),
-    "--yolo",
-    "--text",
-    "--stats",
-    "--max-turns",
-    process.env.MAX_TURNS!,
-    "--timeout",
-    process.env.AGENT_TIMEOUT!,
-    prompt,
-  ];
-
-  const run = spawnSync(
-    "docker",
-    [
-      "exec",
-      "-i",
-      "-u",
-      "agent",
-      "-w",
-      "/src",
-      "-e",
-      `HOME=${sandbox.home}`,
-      "-e",
-      `PATH=${sandbox.home}/.local/bin:/usr/local/bin:/usr/bin:/bin`,
-      "-e",
-      `GIT_SSH_COMMAND=ssh ${sandbox.sshOptions}`,
-      "-e",
-      "SHELL=/usr/local/bin/qm-shell",
-      ...credentials.flatMap((name) => ["-e", name]),
-      sandbox.container,
-      ...term,
-    ],
-    { stdio: ["ignore", "inherit", "inherit"] }
-  );
-
-  for (const produced of ["finish.json", "findings.jsonl"]) {
-    spawnSync(
-      "docker",
-      [
-        "cp",
-        `${sandbox.container}:${sandbox.home}/${produced}`,
-        join(temp, produced),
-      ],
-      {
-        stdio: "ignore",
-      }
-    );
-  }
-  return run.status ?? 1;
-}
 
 async function turn(prompt: string, resume: boolean) {
   const status = ask(prompt, resume);

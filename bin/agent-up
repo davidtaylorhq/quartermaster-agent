@@ -1,0 +1,62 @@
+#!/bin/bash
+# The model client has its own filesystem and reaches the work tree through MCP.
+set -Eeuo pipefail
+
+: "${RUNNER_TEMP:?}" "${BRIDGE_IP:?}" "${SSH_PORT:?}"
+: "${CLIENT_KEY:?}" "${AGENT_DIR:?}" "${GATE_USER:?}" "${SANDBOX_IMAGE:?}"
+
+CONTAINER=workflow-agent-client
+HOME_DIR=/home/agent
+
+log() { echo "[agent] $*" >&2; }
+
+log "booting $SANDBOX_IMAGE"
+docker run -d \
+  --name "$CONTAINER" \
+  --add-host "host.docker.internal:$BRIDGE_IP" \
+  "$SANDBOX_IMAGE" >/dev/null
+
+docker cp "$CLIENT_KEY" "$CONTAINER:$HOME_DIR/.ssh/gate"
+docker exec -u root "$CONTAINER" chown agent:agent "$HOME_DIR/.ssh/gate"
+docker exec -u root "$CONTAINER" chmod 600 "$HOME_DIR/.ssh/gate"
+docker exec -u root "$CONTAINER" install -d -o agent -g agent \
+  "$HOME_DIR/.config/term-llm/agents" "$HOME_DIR/.config/term-llm/skills"
+
+AGENT_TMP="$RUNNER_TEMP/agent"
+rm -rf "$AGENT_TMP"
+cp -r "$AGENT_DIR" "$AGENT_TMP"
+if [ "$(jq 'length' "$ENVIRONMENTS_JSON")" != 0 ]; then
+  {
+    echo
+    echo "## Development environments"
+    echo
+    echo "Through the workspace shell, run commands in one of these environments:"
+    echo
+    jq -r 'to_entries[] | "    \(.key) — \(.value.description)"' "$ENVIRONMENTS_JSON"
+    echo
+    echo "Name the environment before the command:"
+    echo
+    jq -r 'to_entries[0] | "    dev \(.key) <command>"' "$ENVIRONMENTS_JSON"
+    echo
+    echo "The workspace has git and little else. Commands needing a runtime run in an environment, at its mount point."
+    echo "The first command into an environment takes a few minutes while it starts; afterwards they are quick. Do not start one you have nothing to run in."
+  } >> "$AGENT_TMP/system.md"
+fi
+docker cp "$AGENT_TMP/." "$CONTAINER:$HOME_DIR/.config/term-llm/agents/workflow-agent"
+docker cp "$AGENT_DIR/skills/." "$CONTAINER:$HOME_DIR/.config/term-llm/skills"
+sed -e "s#__KEY__#$HOME_DIR/.ssh/gate#" \
+    -e "s#__SSH_PORT__#$SSH_PORT#" \
+    -e "s#__GATE_USER__#$GATE_USER#" \
+    "$AGENT_DIR/mcp.json" \
+  | jq --slurpfile workspace "$RUNNER_TEMP/workspace-mcp.json" \
+    '.servers.workspace = $workspace[0]' > "$RUNNER_TEMP/mcp.json"
+chmod 600 "$RUNNER_TEMP/mcp.json"
+docker cp "$RUNNER_TEMP/mcp.json" "$CONTAINER:$HOME_DIR/.config/term-llm/mcp.json"
+if [ -n "${TERM_LLM_CONFIG:-}" ] && [ -s "$TERM_LLM_CONFIG" ]; then
+  docker cp "$TERM_LLM_CONFIG" "$CONTAINER:$HOME_DIR/.config/term-llm/config.yaml"
+fi
+docker exec -u root "$CONTAINER" chown -R agent:agent "$HOME_DIR/.config"
+
+jq -n --arg container "$CONTAINER" --arg home "$HOME_DIR" \
+  '{container: $container, home: $home}' > "$RUNNER_TEMP/agent.json"
+log "agent ready"

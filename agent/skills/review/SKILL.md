@@ -6,6 +6,7 @@ tools:
   - name: line_comment
     description: "Note a comment against one line of the diff. Collected and posted as a single review when you finish. Only lines the pull request touches can be commented on."
     script: scripts/line-comment.sh
+    call: json
     input:
       type: object
       properties:
