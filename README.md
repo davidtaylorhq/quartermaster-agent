@@ -1,17 +1,13 @@
 # Workflow Agent
 
-Multi-purpose agent for GitHub issues and pull requests. Connect any LLM, with your own keys.
+Mention a bot on a GitHub issue or pull request to ask questions, review code, or make changes. Powered by [term-llm](https://github.com/samsaffron/term-llm), using your model credentials and GitHub Actions.
 
-Built on [term-llm](https://github.com/samsaffron/term-llm).
+## Get started
 
-Mention it on an issue or a pull request and it does the work: answers questions, reviews a diff, writes a patch and pushes it. It runs in your own GitHub Actions, on your own credentials, and the agent itself holds no GitHub token and can push to exactly one branch.
-
-## Use it
-
-Add one workflow to your repository. Pick the name people will type; `@discoursebot`, `@acmebot`, whatever suits.
+Add a model credential as a repository secret, then save this as `.github/workflows/agent.yml` on your **default branch**:
 
 ```yaml
-name: Acmebot
+name: Agent
 on:
   issue_comment:
     types: [created]
@@ -24,192 +20,88 @@ jobs:
       pull-requests: write
       issues: write
     with:
-      mention: '@acmebot'
+      mention: '@mybot'
+      provider: anthropic
     secrets:
       provider-env: |
-        CLAUDE_CODE_OAUTH_TOKEN=${{ secrets.ANTHROPIC_OAUTH_TOKEN }}
+        ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}
 ```
 
-## Settings
+Comment `@mybot review this PR` or `@mybot fix this and run the tests`. The bot posts progress and a reply. Follow-ups within 60 seconds reuse the session.
 
-| Input | Default | |
-|---|---|---|
-| `mention` | *required* | What people type, including the `@` |
-| `bot-name` | the mention without its `@` | Name on the agent's commits |
-| `bot-login` | `github-actions[bot]` | Login the agent's comments appear under. A GitHub App settles this itself |
-| `provider` | unset | Passed to term-llm as `--provider` |
-| `term-llm-config` | unset | Path to a term-llm configuration of your own |
-| `environments` | `.github/workflow-agent/environments.yml` | What the agent may run commands in |
-| `trusted-associations` | `OWNER,MEMBER,COLLABORATOR` | Who may instruct the agent |
-| `followup-window` | `60` | Seconds the sandbox is held open for a follow-up |
-| `max-comment-age-hours` | `1` | Older mentions are left alone |
-| `max-turns` | `60` | |
-| `agent-timeout` | `10m` | |
-| `runs-on` | `ubuntu-latest` | |
-| `timeout-minutes` | `45` | |
+By default, only `OWNER`, `MEMBER`, and `COLLABORATOR` comments can instruct it. These are GitHub associations, not write permissions; set `trusted-associations: OWNER` to restrict access to the owner. Use a fresh Linux runner with Docker; the default is `ubuntu-latest`.
 
-## Giving it a name of its own
+## Run tests and linters
 
-Out of the box the agent speaks as `github-actions[bot]`, which is Actions' own
-identity and cannot be renamed. Pass a GitHub App instead and its comments
-carry the app's name and avatar:
-
-```yaml
-secrets:
-  app-id: ${{ secrets.WORKFLOW_AGENT_APP_ID }}
-  app-private-key: ${{ secrets.WORKFLOW_AGENT_APP_KEY }}
-```
-
-The app needs write on issues, pull requests and contents, and it has to be
-installed on the repository. `bot-login` then settles itself from the app.
-
-This is worth more than a name. A push made with `GITHUB_TOKEN` never starts a
-workflow, which GitHub does to stop runs triggering themselves, so the agent's
-commits arrive on a pull request with no checks against them. An app's push
-starts them.
-
-The app is settled before anything else happens. The eyes the agent puts on a
-comment are what claim it, and every run has to react as the same account for
-that to work.
-
-## Choosing a model
-
-The agent runs [term-llm](https://github.com/samsaffron/term-llm), so it reaches any model term-llm does. Nothing here names a provider.
-
-Credentials arrive as one secret you compose from your own:
-
-```yaml
-with:
-  provider: openai
-secrets:
-  provider-env: |
-    OPENAI_API_KEY=${{ secrets.MY_OPENAI_KEY }}
-```
-
-term-llm resolves those by its usual conventions. Leave `provider` unset and it chooses from whatever credentials it finds; set it to a name, or to `name:model`, to be explicit.
-
-For a self-hosted or OpenAI-compatible endpoint, point `term-llm-config` at a term-llm configuration of your own:
-
-```yaml
-default_provider: local
-providers:
-  local:
-    type: openai-compatible
-    url: https://llm.internal/v1/chat/completions
-    model: qwen3-coder
-    api_key: ${MY_LLM_KEY}
-```
-
-term-llm also reads `op://` for 1Password, `file://`, `srv://` and `$(...)` in any config value, so a multi-line credential can be passed base64-encoded and decoded there.
-
-### Where the credentials go
-
-They are masked before they reach a log, never written into the docker command line, and kept out of `$GITHUB_ENV`.
-
-The model client runs in its own container with the provider credentials. It calls providers directly, including the Claude CLI for subscriptions. Provider URLs and TLS keep their normal behaviour.
-
-Repository work happens in a separate sandbox. That container receives neither model nor GitHub credentials. It runs `term-llm serve mcp`, exposing only `read_file`, `write_file`, `edit_file`, `glob`, and `grep`. Shell commands use the trusted `workspace_shell` script tool over SSH instead of MCP HTTP. It accepts one Bash command, starting in `/src`; use `cd` to change directories or `timeout` for a shorter deadline. The container always enforces a ten-minute deadline; the local tool allows 660 seconds for transport and cleanup. This avoids the MCP client's two-minute response-header timeout during long commands and development environment startup.
-
-The agent connects over Docker's private bridge using a per-run bearer token; the tool server has no published port.
-
-The agent container has no repository mount or Docker socket. Its configuration and SSH gate key are mounted read-only. A separate writable output directory holds `finish.json` and `findings.jsonl`, which the runner reads directly. Conversation state stays inside the container. Both containers use the same runtime image, but have separate filesystems. Only the work sandbox mounts the checkout.
-
-GitHub credentials stay on the runner. Neither container receives them; access still goes through the GitHub read service and push gate.
-
-## Running tests and linters
-
-The sandbox holds git and little else. Anything needing a language runtime or a database runs in a container you describe, in `.github/workflow-agent/environments.yml`:
+For language runtimes and services, add `.github/workflow-agent/environments.yml` on your default branch:
 
 ```yaml
 environments:
-  - name: rails
-    description: Ruby, the database and the Rails app. Specs, migrations, rubocop.
-    image: discourse/discourse_dev:release
-    cmd: /sbin/boot          # optional, as Docker means CMD
-    user: discourse
-    mount: /src
-    setup: |                 # once, on boot, inside, at the mount point
-      until pg_isready -q; do sleep 2; done
-      bundle install --jobs "$(nproc)" --retry 3
-      bin/rake db:create db:migrate
-
-  - name: frontend
-    description: Node and pnpm. Lint, prettier, ember tests.
+  - name: node
+    description: Node.js tests and linting
     image: node:22-bookworm
     cmd: sleep infinity
     user: node
     mount: /src
-    setup: pnpm install --frozen-lockfile
+    setup: npm ci
 ```
 
-The agent names the one it wants:
+The agent runs commands such as `dev node npm test`. Each environment starts on demand, shares the checkout, and runs `setup` once. Images need Bash and a command that stays running. Without this file, the agent still has file tools, Git, and a basic shell.
 
+## Configure
+
+Pass these under the caller's `with:`:
+
+| Input | Purpose |
+| --- | --- |
+| `mention` | Required trigger, including `@` |
+| `provider` | term-llm provider or `provider:model`; omit for automatic selection |
+| `term-llm-config` | Optional config file, read from your default branch |
+| `environments` | Alternative path to the development environment file |
+| `trusted-associations` | Who may instruct the bot |
+| `agent-timeout` | Agent time limit; default `10m` |
+
+`provider-env` accepts multiple `NAME=value` lines. For a Claude subscription, use `provider: claude-bin` with `CLAUDE_CODE_OAUTH_TOKEN` instead of the API key above.
+
+To use a GitHub App identity and let agent pushes trigger CI, also pass `app-id` and `app-private-key` under `secrets:`. Install the app on the repository with write access to contents, issues, and pull requests. Otherwise the bot uses `GITHUB_TOKEN` and replies as `github-actions[bot]`.
+
+See the [workflow definition](.github/workflows/agent.yml) for all inputs and defaults.
+
+## Architecture
+
+The agent container holds model credentials; repository operations run in separate containers. File tools use MCP over HTTP. The `workspace_shell` wrapper sends shell commands through SSH, with a ten-minute limit enforced inside the workspace. The runner controls GitHub access and publishes replies.
+
+```mermaid
+flowchart TB
+  llm["Model provider"]
+  github["GitHub"]
+
+  subgraph runner["GitHub Actions runner"]
+    agent["Agent container<br/>term-llm + workspace_shell"]
+    workspace["Workspace container · /src<br/>MCP file tools · shell · git · dev wrapper"]
+    gate["SSH gate<br/>Fixed commands only"]
+    dev["Development containers<br/>Shared checkout · started on demand"]
+    mcp["GitHub MCP container<br/>Read-only API tools"]
+    fetch["Git read forwarder"]
+    relay["Git push relay<br/>Only the permitted PR branch"]
+    reply["Reply publisher"]
+
+    agent -->|"File tools · HTTP"| workspace
+    agent -->|"workspace_shell / GitHub MCP · SSH"| gate
+    gate -->|"docker exec · shell"| workspace
+    workspace -->|"dev / git push · SSH"| gate
+    gate -->|"Start and execute"| dev
+    gate -->|"MCP over stdio"| mcp
+    gate --> relay
+    workspace -->|"git fetch"| fetch
+    agent -->|"Output mount"| reply
+  end
+
+  agent --> llm
+  mcp --> github
+  fetch --> github
+  relay --> github
+  reply --> github
 ```
-dev rails bin/rspec spec/lib/text_sentinel_spec.rb
-dev frontend pnpm lint
-```
 
-There are no shortcuts into an environment, so the agent always knows a command is leaving the sandbox, and the log says where it ran.
-
-`description` is what the agent reads to choose between them, so write it for the agent.
-
-`mount` is where the checkout appears, already holding the agent's edits, and commands run there. `image`, `entrypoint` and `cmd` mean what Docker means by them; omit either of the last two for the image's own. `cmd` may be a list or a string split on spaces.
-
-The container has to stay up, so an image whose default command exits needs a `cmd` that does not.
-
-`setup` runs once, as `user`, when the container is created, and may assume a clean slate. An environment that stops is not started again, so nothing ever runs it twice. The image needs `bash`. It runs under `-e -o pipefail`, so the first command that fails ends it.
-
-Write the commands here rather than calling a script in your repository. This file comes from your default branch, but the checkout it runs against is the pull request's, and a branch opened before you added that script does not have it. Its commands should read the work tree — installing what the pull request's lockfile says, not your default branch's — but what those commands *are* should not depend on the branch being worked on. Anything too long for this belongs in the image.
-
-Progress resumes even when preparation fails. If the configured user could not be established, later commands refuse to reuse the container.
-
-A failed `setup` is reported to the agent and the environment is still usable, because a half-prepared environment the agent knows about is more use than none. Expect to see it work round the gap, and say that it did.
-
-Each environment starts only when the agent first asks for it, and a cold start costs a couple of minutes, so a project with several never pays for the ones a run did not use.
-
-Two things are ours and not negotiable: `docker run` and its flags, so no project can open the sandbox by mounting the docker socket; and reconciling `user` to uid 1000, because that is what the sandbox writes the checkout as.
-
-**The file is read from your default branch, never from the pull request.** It decides what runs on the runner, so a pull request must not be able to choose it.
-
-With no such file the agent can use the workspace shell, but no development environments are available.
-
-## How it works
-
-`bin/host-setup` provisions the runner's Git relay, read forwarder and SSH gate. `bin/containers-up.ts` prepares configuration and starts the two containers on a private Docker network. The workspace MCP server is its container's main process; its exit and logs are visible through Docker. The client stays up across conversation turns. Its configuration and SSH key are mounted read-only, and its output directory is writable by the agent and readable by the runner.
-
-The model client and workspace tools run in separate containers, neither holding a GitHub credential. Everything it can ask the runner for goes through an SSH gate with a fixed list of commands, and anything else is refused:
-
-| | said by |
-|---|---|
-| `workspace-shell` | the trusted `workspace_shell` tool, to execute inside the work sandbox |
-| `dev <environment>` | the agent, to run a command somewhere with a runtime |
-| `mcp` | term-llm, to reach the GitHub MCP server |
-| `git-receive-pack` | git, when the agent runs `git push` |
-
-The last is not a command the agent writes. It runs `git push` and git speaks the protocol; the gate's hooks decide what reaches the branch. Reads do not go through the gate at all: `origin` fetches from a forwarder on the runner that allows two paths, both of them `upload-pack`, and adds the credential the container has not got. The model credential is held only by the agent container; the work sandbox cannot read it.
-
-- **Pushing.** The container pushes to a bare repository on the runner. A hook there refuses every ref but the pull request's own branch, and a second hook forwards what it accepts to GitHub using a token the container never sees. `GITHUB_TOKEN` permissions cannot be scoped to a ref, so this is the only way to say "this branch and no other".
-- **Reading GitHub.** A read-only GitHub MCP server, started on the runner, reached through the gate.
-- **Fetching.** The work tree arrives with the pull request's head and the commit it branched from, so a diff needs no network. `git fetch` reaches the rest through the forwarder, which serves this repository and nothing else.
-- **Answering.** The agent calls `finish` once. The runner posts the reply. Nothing the agent does reaches GitHub on its own.
-
-Who may instruct it is settled by GitHub's author association, so a comment from a passer-by is context, never an instruction.
-
-Association is not permission. `MEMBER` means a member of the organisation and `COLLABORATOR` means someone invited to this repository, and neither says they can write to it. The agent pushes with its own token, so anyone listed here can reach the branch through it. Narrow `trusted-associations` to `OWNER` if that is not what you want.
-
-A failed or cancelled run releases its mention reactions only if publication has not begun. Rerunning it can then claim those mentions again. Once publication starts, claims stay in place even if GitHub times out: the reply may already exist. Check the thread before removing an eyes reaction to retry that case. The triggering comment is still eligible on a rerun after the normal backlog age limit.
-
-## What this does not do yet
-
-- **Fresh image builds still use upstream defaults.** The workflow selects the image tagged with its own commit, and builds its checked-out Dockerfile if that image is unavailable. Published images pass the Docker smoke test first. The term-llm version is pinned; the Debian base and Claude installer still follow upstream defaults, so rebuilding a revision is not byte-for-byte reproducible.
-- **The runner has to be a fresh one.** State goes in fixed places: one directory under `HOME`, fixed ports, fixed container names, and nothing is torn down at the end. A second run on the same self-hosted machine finds the first one's keys and containers.
-
-- **No egress filtering.** The container can reach the whole internet. A prompt injection in a pull request cannot steal a GitHub token, because there isn't one, but it can talk to anything.
-- **The agent container holds the model credential.** Repository tools run elsewhere, but there is no OS restriction on subprocesses inside the agent container. Its configuration, provider clients, and workflow-owned scripts must remain trusted.
-- **Repository instructions are read through tools.** The agent is instructed to read `AGENTS.md` and relevant `SKILL.md` files in the work sandbox. Repository skills are not automatically registered in the agent container; their scripts can be run through the workspace shell.
-
-## Developing this workflow
-
-Run `npm test`, `npm run check`, and `npm run lint`. To include the MCP integration test, set `TERM_LLM_BINARY` to the term-llm binary matching `TERM_LLM_VERSION` in `sandbox/Dockerfile`. CI installs that version automatically. The test runs a real tool server and agent against a scripted model endpoint, without provider or GitHub credentials, and checks workspace operations, review findings, and session resume.
-
-CI also builds the runtime and runs `test/docker-smoke` on a disposable Docker runner. It checks actual read-only configuration and writable output mounts, uid ownership, SSH gate authentication, a shell command lasting longer than two minutes, sandbox-enforced command timeouts, MCP authentication, and service exit. The smoke test uses placeholder credentials and does not call a model or write to GitHub.
+The agent has no checkout mount or Docker socket. Its config and SSH key are read-only mounts. Model credentials stay out of workspace and development containers; GitHub credentials stay with the runner-side services. Containers have outbound network access.
