@@ -178,8 +178,7 @@ jobs:
           WORKFLOW_SHA: ${{ job.workflow_sha }}
         run: |
           # The scripts, the agent and the checklist images all come from the
-          # commit this workflow came from. The sandbox image does not: it
-          # floats, so a pinned caller can get a newer one than its scripts.
+          # commit this workflow came from, including the runtime image.
           if [ -z "$WORKFLOW_SHA" ] || [ -z "$WORKFLOW_REF" ]; then
             echo "::error::job.workflow_ref/workflow_sha are empty; this workflow cannot locate its own scripts"
             exit 1
@@ -189,13 +188,8 @@ jobs:
           echo "sha=$WORKFLOW_SHA" >> "$GITHUB_OUTPUT"
           echo "ASSET_REPO=$repo" >> "$GITHUB_ENV"
           echo "ASSET_REF=$WORKFLOW_SHA" >> "$GITHUB_ENV"
-          echo "SANDBOX_IMAGE=ghcr.io/$repo/sandbox:latest" >> "$GITHUB_ENV"
+          echo "SANDBOX_IMAGE=ghcr.io/$repo/sandbox:$WORKFLOW_SHA" >> "$GITHUB_ENV"
 
-      - name: Pull the sandbox image
-        if: steps.seen.outputs.ours == 'true'
-        id: pull
-        background: true
-        run: docker pull "$SANDBOX_IMAGE"
       - name: Check out the agent
         if: steps.seen.outputs.ours == 'true'
         uses: actions/checkout@v7
@@ -208,8 +202,18 @@ jobs:
             lib
             vendor
             agent
+            sandbox
           path: workflow-agent
           persist-credentials: false
+      - name: Prepare the matching runtime image
+        if: steps.seen.outputs.ours == 'true'
+        id: pull
+        background: true
+        run: |
+          if ! docker pull "$SANDBOX_IMAGE"; then
+            # A new workflow may run before its image has been published.
+            docker build -t "$SANDBOX_IMAGE" workflow-agent/sandbox
+          fi
       - name: Resolve the pull request
         if: steps.seen.outputs.ours == 'true'
         id: pr

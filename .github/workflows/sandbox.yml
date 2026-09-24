@@ -20,10 +20,23 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
       - uses: docker/build-push-action@v6
         with:
           context: sandbox
-          push: true
-          tags: |
-            ghcr.io/${{ github.repository }}/sandbox:${{ github.sha }}
-            ghcr.io/${{ github.repository }}/sandbox:latest
+          load: true
+          tags: workflow-agent-smoke
+      - name: Exercise container boundaries before publishing
+        timeout-minutes: 5
+        run: test/docker-smoke
+      - name: Publish the tested runtime
+        env:
+          IMAGE: ghcr.io/${{ github.repository }}/sandbox
+          REVISION: ${{ github.sha }}
+        run: |
+          docker tag workflow-agent-smoke "$IMAGE:$REVISION"
+          docker tag workflow-agent-smoke "$IMAGE:latest"
+          docker push "$IMAGE:$REVISION"
+          docker push "$IMAGE:latest"

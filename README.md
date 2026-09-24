@@ -196,7 +196,7 @@ A failed or cancelled run releases its mention reactions only if publication has
 
 ## What this does not do yet
 
-- **The sandbox image floats.** Scripts, prompt and assets come from the commit the workflow was called at, but the image is always `sandbox:latest`, so pinning a caller to a tag does not pin what it runs in.
+- **Fresh image builds still use upstream defaults.** The workflow selects the image tagged with its own commit, and builds its checked-out Dockerfile if that image is unavailable. Published images pass the Docker smoke test first. The term-llm version is pinned; the Debian base and Claude installer still follow upstream defaults, so rebuilding a revision is not byte-for-byte reproducible.
 - **The runner has to be a fresh one.** State goes in fixed places: one directory under `HOME`, fixed ports, fixed container names, and nothing is torn down at the end. A second run on the same self-hosted machine finds the first one's keys and containers.
 
 - **No egress filtering.** The container can reach the whole internet. A prompt injection in a pull request cannot steal a GitHub token, because there isn't one, but it can talk to anything.
