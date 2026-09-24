@@ -40,9 +40,7 @@ docker exec -u agent -e HOME=/home/agent workflow-agent-client \
 
 # Authenticate with the real SSH gate, which must refuse arbitrary commands.
 set +e
-gate=$(docker exec -u agent workflow-agent-client ssh -T -i /home/agent/.ssh/gate \
-  -p "$SSH_PORT" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-  "$GATE_USER@host.docker.internal" forbidden 2>&1)
+gate=$(docker exec -u agent workflow-agent-client ssh -T workflow-gate forbidden 2>&1)
 status=$?
 set -e
 [ "$status" = 1 ]
@@ -68,12 +66,12 @@ docker exec -u agent workflow-agent-sandbox sh -ec '
 # Exercise the actual tool script over SSH, beyond the HTTP header deadline.
 shell_tool() {
   docker exec -i -u agent -e HOME=/home/agent -e ANTHROPIC_API_KEY=smoke-model-secret \
-    workflow-agent-client /home/agent/.config/term-llm/agents/workflow-agent/scripts/workspace-shell
+    workflow-agent-client /home/agent/.config/term-llm/agents/workflow-agent/scripts/workspace-shell "$@"
 }
-result=$(printf '%s' '{"command":"test -z \"$ANTHROPIC_API_KEY$GH_TOKEN\" && test \"$(id -u)\" = 1000 && sleep 125 && printf ssh-shell-ok","timeout_seconds":150}' | shell_tool)
+result=$(shell_tool 'test -z "$ANTHROPIC_API_KEY$GH_TOKEN" && test "$(id -u)" = 1000 && sleep 125 && printf ssh-shell-ok')
 [ "$result" = ssh-shell-ok ]
 set +e
-printf '%s' '{"command":"sleep 30","timeout_seconds":1}' | shell_tool
+shell_tool 'timeout 1 sleep 30'
 status=$?
 set -e
 [ "$status" = 124 ]

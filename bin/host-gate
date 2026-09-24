@@ -9,7 +9,8 @@
 case "$SSH_ORIGINAL_COMMAND" in
   workspace-shell)
     exec docker exec -i -u agent -w /src -e HOME=/home/agent \
-      workflow-agent-sandbox /usr/local/bin/workspace-shell
+      workflow-agent-sandbox \
+      timeout --kill-after=5s 600 bash -s
     ;;
   mcp)
     exec docker run -i --rm \
@@ -32,10 +33,12 @@ case "$SSH_ORIGINAL_COMMAND" in
 
     user=$(jq -r --arg n "$name" '.[$n].user // ""' "$ENVIRONMENTS")
     mount=$(jq -r --arg n "$name" '.[$n].mount' "$ENVIRONMENTS")
+    user_args=()
     if [ -n "$user" ]; then
-      exec docker exec -i -u "$user" -w "$mount" -e CI=1 "workflow-agent-dev-$name" bash -l
+      user_args=(-u "$user")
     fi
-    exec docker exec -i -w "$mount" -e CI=1 "workflow-agent-dev-$name" bash -l
+    exec docker exec -i "${user_args[@]}" -w "$mount" -e CI=1 \
+      "workflow-agent-dev-$name" bash -l
     ;;
   git-receive-pack*)
     exec git-receive-pack "$RELAY"

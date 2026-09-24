@@ -120,7 +120,7 @@ test("workspace tools and the model client run in separate containers", (t) => {
   assert.ok(serving.includes("workflow-agent-sandbox"));
   assert.equal(serving[0], "run");
   assert.ok(serving.includes("/src"));
-  assert.ok(serving.some((arg) => arg.startsWith("GIT_SSH_COMMAND=")));
+  assert.ok(serving.includes(`${dir}/ssh-config:/home/agent/.ssh/config:ro`));
   assert.doesNotMatch(serving.join(" "), /GH_TOKEN|API_KEY|HTTPS_PROXY/);
 
   const mcp = JSON.parse(
@@ -135,6 +135,19 @@ test("workspace tools and the model client run in separate containers", (t) => {
     /^Bearer [a-f0-9]{64}$/
   );
   assert.equal(mcp.servers.github.command, "ssh");
+  assert.deepEqual(mcp.servers.github.args, ["-T", "workflow-gate", "mcp"]);
+  const ssh = spawnSync(
+    "ssh",
+    ["-G", "-F", join(dir, "ssh-config"), "workflow-gate"],
+    { encoding: "utf8" }
+  );
+  assert.equal(ssh.status, 0, ssh.stderr);
+  assert.match(ssh.stdout, /^user runner$/m);
+  assert.match(ssh.stdout, /^port 2222$/m);
+  assert.match(ssh.stdout, /^identityfile \/home\/agent\/.ssh\/gate$/m);
+  assert.ok(
+    agent.args.includes(`${dir}/ssh-config:/home/agent/.ssh/config:ro`)
+  );
   assert.equal(
     readFileSync(join(dir, "agent-config/config.yaml"), "utf8"),
     "default_provider: anthropic\n"
@@ -154,8 +167,7 @@ test("declared environments expose the static dev client read-only", (t) => {
   run("containers-up.ts");
   const args = calls().find((call) => call.args[0] === "run")!.args;
   assert.ok(args.some((arg) => arg.endsWith("/bin/dev:/usr/local/bin/dev:ro")));
-  assert.ok(args.includes("SSH_PORT=2222"));
-  assert.ok(args.includes("GATE_USER=runner"));
+
   assert.ok(calls().every((call) => !call.args.includes("bash")));
 });
 

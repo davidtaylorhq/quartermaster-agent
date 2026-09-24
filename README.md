@@ -108,7 +108,7 @@ They are masked before they reach a log, never written into the docker command l
 
 The model client runs in its own container with the provider credentials. It calls providers directly, including the Claude CLI for subscriptions. Provider URLs and TLS keep their normal behaviour.
 
-Repository work happens in a separate sandbox. That container receives neither model nor GitHub credentials. It runs `term-llm serve mcp`, exposing only `read_file`, `write_file`, `edit_file`, `glob`, and `grep`. Shell commands use the trusted `workspace_shell` script tool over SSH instead of MCP HTTP. Its command, working directory (default `/src`) and timeout (default and maximum 600 seconds) are interpreted inside the workspace container. The container enforces the deadline; the local tool allows 660 seconds for transport and cleanup. This avoids the MCP client's two-minute response-header timeout during long commands and development environment startup.
+Repository work happens in a separate sandbox. That container receives neither model nor GitHub credentials. It runs `term-llm serve mcp`, exposing only `read_file`, `write_file`, `edit_file`, `glob`, and `grep`. Shell commands use the trusted `workspace_shell` script tool over SSH instead of MCP HTTP. It accepts one Bash command, starting in `/src`; use `cd` to change directories or `timeout` for a shorter deadline. The container always enforces a ten-minute deadline; the local tool allows 660 seconds for transport and cleanup. This avoids the MCP client's two-minute response-header timeout during long commands and development environment startup.
 
 The agent connects over Docker's private bridge using a per-run bearer token; the tool server has no published port.
 

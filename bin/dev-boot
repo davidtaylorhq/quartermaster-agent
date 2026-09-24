@@ -13,7 +13,11 @@ USABLE="${RUNNER_TEMP:-/tmp}/dev-$NAME.usable"
 # This runs behind the gate, so anything printed here would land in the middle
 # of the output the agent asked for.
 note() { echo "[$NAME] $*" >> "$LOG"; }
-fatal() { note "$*"; echo "$BOT_NAME: $NAME: $*" >&2; exit 1; }
+fatal() {
+  note "$*"
+  echo "$BOT_NAME: $NAME: $*" >&2
+  exit 1
+}
 progress() {
   if ! flock "${RUNNER_TEMP:-/tmp}/progress.lock" "$PROGRESS" "$@" >>"$LOG" 2>&1; then
     echo "[$NAME] progress $* failed" >> "$LOG"
@@ -29,18 +33,19 @@ flock 9
 
 # Made once and set up once: a second container over the first one's volumes
 # would run setup against a state it was told it would not see.
-status=none
-if found=$(docker inspect -f '{{.State.Status}}' "$CONTAINER" 2>/dev/null); then
-  status=$(printf '%s' "$found" | tr -d '[:space:]')
-  [ -n "$status" ] || status=none
-fi
-
+status=$(docker inspect -f '{{.State.Status}}' "$CONTAINER" 2>/dev/null) || status=none
 case "$status" in
   running)
-    [ -f "$USABLE" ] || fatal "initialization did not establish a usable environment"
-    exit 0 ;;
-  none)    ;;
-  *)       fatal "the environment $status and will not be started again" ;;
+    if [ ! -f "$USABLE" ]; then
+      fatal "initialization did not establish a usable environment"
+    fi
+    exit 0
+    ;;
+  none)
+    ;;
+  *)
+    fatal "the environment $status and will not be started again"
+    ;;
 esac
 
 progress interrupt "Preparing $NAME"
@@ -55,7 +60,9 @@ SETUP=$(field setup)
 
 note "starting $IMAGE"
 args=(run -d --name "$CONTAINER" -v "$WORKTREE:$MOUNT" -w "$MOUNT")
-[ -n "$ENTRYPOINT" ] && args+=(--entrypoint "$ENTRYPOINT")
+if [ -n "$ENTRYPOINT" ]; then
+  args+=(--entrypoint "$ENTRYPOINT")
+fi
 args+=("$IMAGE")
 args+=("${CMD[@]}")
 if ! docker "${args[@]}" >>"$LOG" 2>&1; then
@@ -66,11 +73,13 @@ fi
 if [ -n "$USER_NAME" ]; then
   docker exec -u root "$CONTAINER" sh -c '
     set -e
-    [ "$(id -u "$1")" = 1000 ] || {
-      usermod -u 1000 "$1"
-      groupmod -g 1000 "$1" 2>/dev/null || true
-      chown -R 1000:1000 "$(getent passwd "$1" | cut -d: -f6)"
-    }
+    user=$1
+    if [ "$(id -u "$user")" != 1000 ]; then
+      usermod -u 1000 "$user"
+      groupmod -g 1000 "$user" 2>/dev/null || true
+      user_home=$(getent passwd "$user" | cut -d: -f6)
+      chown -R 1000:1000 "$user_home"
+    fi
   ' sh "$USER_NAME" >>"$LOG" 2>&1 || fatal "could not give $USER_NAME uid 1000"
 fi
 
@@ -79,8 +88,12 @@ touch "$USABLE"
 
 if [ -n "$SETUP" ]; then
   note "setting up"
-  if ! docker exec -i ${USER_NAME:+-u "$USER_NAME"} -w "$MOUNT" -e CI=1 \
-       "$CONTAINER" bash -e -o pipefail -lc "$SETUP" </dev/null >>"$LOG" 2>&1; then
+  setup_args=(exec -i -w "$MOUNT" -e CI=1)
+  if [ -n "$USER_NAME" ]; then
+    setup_args+=(-u "$USER_NAME")
+  fi
+  if ! docker "${setup_args[@]}" "$CONTAINER" bash -e -o pipefail -lc "$SETUP" \
+       </dev/null >>"$LOG" 2>&1; then
     fatal "setup failed, and the log has why"
   fi
 fi

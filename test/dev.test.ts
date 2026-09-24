@@ -36,8 +36,6 @@ process.exit(result.status ?? 1);
         HOME: dir,
         PATH: `${dir}:${process.env.PATH}`,
         SSH_ARGS: args,
-        SSH_PORT: "2222",
-        GATE_USER: "runner",
       },
       encoding: "utf8",
     });
@@ -45,7 +43,7 @@ process.exit(result.status ?? 1);
 }
 
 test("dev preserves command arguments across the remote shell", (t) => {
-  const { dir, args, run } = client(t);
+  const { args, run } = client(t);
   const values = [
     "two words",
     "",
@@ -69,15 +67,7 @@ test("dev preserves command arguments across the remote shell", (t) => {
   assert.deepEqual(JSON.parse(result.stdout), values);
   assert.deepEqual(JSON.parse(readFileSync(args, "utf8")), [
     "-T",
-    "-i",
-    `${dir}/.ssh/gate`,
-    "-p",
-    "2222",
-    "-o",
-    "StrictHostKeyChecking=no",
-    "-o",
-    "UserKnownHostsFile=/dev/null",
-    "runner@host.docker.internal",
+    "workflow-gate",
     "dev rails",
   ]);
 });

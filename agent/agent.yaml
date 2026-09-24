@@ -10,22 +10,14 @@ tools:
     - name: workspace_shell
       description: "Run a shell command in the workspace sandbox. Use dev <environment> <command> for development runtimes. Returns stdout, stderr and exit status."
       script: scripts/workspace-shell
-      call: json
+      call: positional
       timeout_seconds: 660
       input:
         type: object
         properties:
           command:
             type: string
-            description: "Bash command to execute inside the sandbox"
-          working_dir:
-            type: string
-            description: "Directory inside the sandbox; defaults to /src"
-          timeout_seconds:
-            type: integer
-            minimum: 1
-            maximum: 600
-            description: "Command deadline in seconds; defaults to 600 to allow development environment startup"
+            description: "Bash command to execute in /src, with a ten-minute deadline. Use cd to change directories or timeout for a shorter deadline."
         required: [command]
         additionalProperties: false
 

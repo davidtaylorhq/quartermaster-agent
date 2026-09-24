@@ -6,11 +6,8 @@ if [ "$#" -lt 2 ]; then
   echo 'usage: dev <environment> <command>...' >&2
   exit 2
 fi
-: "${SSH_PORT:?}" "${GATE_USER:?}"
 
 name=$1
 shift
 { printf '%q ' "$@"; printf '\n'; } |
-  ssh -T -i "$HOME/.ssh/gate" -p "$SSH_PORT" \
-    -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    "$GATE_USER@host.docker.internal" "dev $name"
+  ssh -T workflow-gate "dev $name"

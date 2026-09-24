@@ -51,15 +51,14 @@ test(
       join(stubs, "ssh"),
       `#!/bin/bash
 unset ANTHROPIC_API_KEY
-exec "${join(root, "bin/workspace-shell")}"
+cd "${workspace}"
+exec bash -s
 `,
       { mode: 0o755 }
     );
     const baseEnv = {
       PATH: `${stubs}:${process.env.PATH}`,
       LANG: "C.UTF-8",
-      SSH_PORT: "2222",
-      GATE_USER: "runner",
     };
 
     const reservation = createServer();
@@ -140,7 +139,6 @@ exec "${join(root, "bin/workspace-shell")}"
         "workspace_shell",
         {
           command: 'test -z "$ANTHROPIC_API_KEY" && cat example.txt',
-          working_dir: workspace,
         },
       ],
       ["activate_skill", { name: "review" }],

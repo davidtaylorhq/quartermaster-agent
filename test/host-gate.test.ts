@@ -140,7 +140,7 @@ test("workspace shell enters the fixed unprivileged container without host crede
   assert.equal(out.status, 0);
   assert.equal(
     out.stdout.trim(),
-    "docker exec -i -u agent -w /src -e HOME=/home/agent workflow-agent-sandbox /usr/local/bin/workspace-shell"
+    "docker exec -i -u agent -w /src -e HOME=/home/agent workflow-agent-sandbox timeout --kill-after=5s 600 bash -s"
   );
   assert.equal(ask("workspace-shell arbitrary-arguments").status, 1);
 });

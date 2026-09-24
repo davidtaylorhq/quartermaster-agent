@@ -44,16 +44,20 @@ const agent = join(config, "agents/workflow-agent");
 const token = randomBytes(32).toString("hex");
 console.log(`::add-mask::${token}`);
 const url = `http://${WORKSPACE}:8080/mcp`;
-const ssh = [
-  "-i",
-  `${HOME}/.ssh/gate`,
-  "-p",
-  port,
-  "-o",
-  "StrictHostKeyChecking=no",
-  "-o",
-  "UserKnownHostsFile=/dev/null",
-];
+const sshConfig = join(temp, "ssh-config");
+writeFileSync(
+  sshConfig,
+  `Host workflow-gate
+  HostName host.docker.internal
+  User ${user}
+  Port ${port}
+  IdentityFile ${HOME}/.ssh/gate
+  BatchMode yes
+  ConnectTimeout 10
+  StrictHostKeyChecking no
+  UserKnownHostsFile /dev/null
+`
+);
 
 mkdirSync(join(config, "agents"), { recursive: true });
 cpSync(source, agent, { recursive: true });
@@ -83,7 +87,7 @@ writeFileSync(
     servers: {
       github: {
         command: "ssh",
-        args: [...ssh, `${user}@host.docker.internal`, "mcp"],
+        args: ["-T", "workflow-gate", "mcp"],
       },
       workspace: {
         type: "http",
@@ -102,7 +106,7 @@ if (
   cpSync(process.env.TERM_LLM_CONFIG, join(config, "config.yaml"));
 }
 const group = String(process.getgid!());
-run("sudo", "chown", "-R", `1000:${group}`, config);
+run("sudo", "chown", "-R", `1000:${group}`, config, sshConfig);
 run("sudo", "install", "-d", "-o", "1000", "-g", group, "-m", "2770", output);
 // Let term-llm perform its own provider detection before freezing the config.
 if (!existsSync(join(config, "config.yaml"))) {
@@ -132,6 +136,8 @@ const common = [
   `host.docker.internal:${bridge}`,
   "-v",
   `${key}:${HOME}/.ssh/gate:ro`,
+  "-v",
+  `${sshConfig}:${HOME}/.ssh/config:ro`,
 ];
 run(
   "docker",
@@ -150,21 +156,13 @@ run(
   `${worktree}:/src`,
   "-v",
   `${join(import.meta.dirname, "workspace-start")}:/usr/local/bin/workspace-start:ro`,
-  "-v",
-  `${join(import.meta.dirname, "workspace-shell")}:/usr/local/bin/workspace-shell:ro`,
   ...(environments.length
     ? ["-v", `${join(import.meta.dirname, "dev")}:/usr/local/bin/dev:ro`]
     : []),
   "-e",
-  `SSH_PORT=${port}`,
-  "-e",
-  `GATE_USER=${user}`,
-  "-e",
   `FORWARD_PORT=${forwardPort}`,
   "-e",
   `GITHUB_REPOSITORY=${repo}`,
-  "-e",
-  `GIT_SSH_COMMAND=ssh ${ssh.join(" ")}`,
   "-e",
   `MCP_TOKEN=${token}`,
   image,
@@ -183,10 +181,6 @@ run(
   `${output}:/output:rw`,
   "-e",
   "OUTPUT_DIR=/output",
-  "-e",
-  `SSH_PORT=${port}`,
-  "-e",
-  `GATE_USER=${user}`,
   image
 );
 
