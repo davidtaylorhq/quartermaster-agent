@@ -1,0 +1,6 @@
+#!/bin/bash
+. "$HOME/.workflow-agent/env"
+if [ "$1" != "refs/heads/$HEAD_REF" ]; then
+  echo "${BOT_NAME}: only $HEAD_REF may be pushed from the sandbox" >&2
+  exit 1
+fi

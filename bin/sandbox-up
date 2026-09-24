@@ -23,35 +23,22 @@ in_sandbox() {
   docker exec -u agent -w /src -e HOME="$HOME_DIR" "$CONTAINER" "$@"
 }
 
+dev=()
+if [ "$(jq 'length' "$ENVIRONMENTS_JSON")" != 0 ]; then
+  dev=(
+    -v "$(realpath "$(dirname "$0")/dev"):/usr/local/bin/dev:ro"
+    -e SSH_PORT -e GATE_USER
+  )
+fi
+
 log "booting $SANDBOX_IMAGE"
 docker run -d \
   --name "$CONTAINER" \
   --add-host "host.docker.internal:$BRIDGE_IP" \
   -v "$WORKTREE:/src" \
   -v "$CLIENT_KEY:$HOME_DIR/.ssh/gate:ro" \
+  "${dev[@]}" \
   "$SANDBOX_IMAGE" >/dev/null
-
-# Anything needing more than git runs in a named development environment.
-if [ "$(jq 'length' "$ENVIRONMENTS_JSON")" != 0 ]; then
-  log "installing the development environment wrapper"
-  docker exec -u root "$CONTAINER" bash -c "
-    set -e
-    cat > /usr/local/bin/dev <<'WRAP'
-#!/bin/bash
-# Run a command in one of this project's development environments.
-set -euo pipefail
-if [ \$# -lt 2 ]; then
-  echo 'usage: dev <environment> <command>...' >&2
-  exit 2
-fi
-name=\$1
-shift
-{ printf '%q ' \"\$@\"; printf '\n'; } > /tmp/dev.\$\$
-exec ssh $SSH_OPTS $GATE_USER@host.docker.internal \"dev \$name\" < /tmp/dev.\$\$
-WRAP
-    chmod 0755 /usr/local/bin/dev
-  "
-fi
 
 # Reads go through the forwarder, which holds the credential the sandbox must
 # not. Pushes go through the gate, whose hooks decide what reaches the branch.

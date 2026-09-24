@@ -136,6 +136,20 @@ test("workspace tools and the model client run in separate containers", (t) => {
   );
 });
 
+test("declared environments expose the static dev client read-only", (t) => {
+  const { dir, run, calls } = fixture(t);
+  writeFileSync(
+    join(dir, "environments.json"),
+    JSON.stringify({ rails: { image: "test", mount: "/src" } })
+  );
+  run("sandbox-up");
+  const args = calls().find((call) => call.args[0] === "run")!.args;
+  assert.ok(args.some((arg) => arg.endsWith("/bin/dev:/usr/local/bin/dev:ro")));
+  assert.ok(args.includes("SSH_PORT"));
+  assert.ok(args.includes("GATE_USER"));
+  assert.ok(calls().every((call) => !call.args.includes("bash")));
+});
+
 test("an unavailable workspace server stops startup", (t) => {
   const { env } = fixture(t);
   const out = spawnSync("bash", [join(root, "bin/sandbox-up")], {

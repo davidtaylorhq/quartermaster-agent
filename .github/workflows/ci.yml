@@ -44,5 +44,5 @@ jobs:
           - name: Shell
             if: ${{ !cancelled() }}
             run: |
-              for f in bin/host-setup bin/sandbox-up bin/agent-up bin/dev-boot; do bash -n "$f"; done
+              for f in bin/host-setup bin/sandbox-up bin/agent-up bin/dev-boot bin/dev bin/git-update bin/git-post-receive; do bash -n "$f"; done
               sh -n bin/host-gate
