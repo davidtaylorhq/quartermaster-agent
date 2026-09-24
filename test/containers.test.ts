@@ -217,8 +217,14 @@ test("an absent optional provider configuration does not prevent startup", (t) =
   run("containers-up.ts");
   const bootstrap = calls().find(({ args }) => args.includes("--rm"))!;
   assert.ok(bootstrap.args.includes("agents"));
-  assert.ok(bootstrap.args.includes(`${dir}/agent-config:/home/agent/.config/term-llm:rw`));
+  assert.ok(
+    bootstrap.args.includes(
+      `${dir}/agent-config:/home/agent/.config/term-llm:rw`
+    )
+  );
   assert.ok(bootstrap.args.includes("ANTHROPIC_API_KEY"));
-  assert.doesNotMatch(bootstrap.args.join(" "), /GH_TOKEN|github-secret|model-secret/);
-
+  assert.doesNotMatch(
+    bootstrap.args.join(" "),
+    /GH_TOKEN|github-secret|model-secret/
+  );
 });

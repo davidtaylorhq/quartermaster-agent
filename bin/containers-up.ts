@@ -107,10 +107,22 @@ run("sudo", "install", "-d", "-o", "1000", "-g", group, "-m", "2770", output);
 // Let term-llm perform its own provider detection before freezing the config.
 if (!existsSync(join(config, "config.yaml"))) {
   const credentials = load(process.env.PROVIDER_ENV_FILE, process.env);
-  run("docker", "run", "--rm", "-u", "agent", "-e", `HOME=${HOME}`,
-    "-v", `${config}:${HOME}/.config/term-llm:rw`,
+  run(
+    "docker",
+    "run",
+    "--rm",
+    "-u",
+    "agent",
+    "-e",
+    `HOME=${HOME}`,
+    "-v",
+    `${config}:${HOME}/.config/term-llm:rw`,
     ...credentials.flatMap((name) => ["-e", name]),
-    image, `${HOME}/.local/bin/term-llm`, "agents", "list");
+    image,
+    `${HOME}/.local/bin/term-llm`,
+    "agents",
+    "list"
+  );
 }
 run("docker", "network", "create", NETWORK);
 const common = [
