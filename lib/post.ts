@@ -76,8 +76,7 @@ export async function publish(): Promise<void> {
     } catch (error) {
       if (
         !(error instanceof GitHubError) ||
-        error.status < 400 ||
-        error.status >= 500
+        ![400, 403, 404, 422].includes(error.status)
       ) {
         throw error;
       }
