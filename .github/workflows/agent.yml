@@ -34,7 +34,7 @@ on:
         description: >-
           Path in this repository to the development environments the agent may
           run commands in. Without this file the agent reads, writes and
-          answers, but runs nothing.
+          answers using the workspace tools, without a development runtime.
         type: string
         default: .github/workflow-agent/environments.yml
       trusted-associations:

@@ -159,6 +159,8 @@ The container has to stay up, so an image whose default command exits needs a `c
 
 Write the commands here rather than calling a script in your repository. This file comes from your default branch, but the checkout it runs against is the pull request's, and a branch opened before you added that script does not have it. Its commands should read the work tree — installing what the pull request's lockfile says, not your default branch's — but what those commands *are* should not depend on the branch being worked on. Anything too long for this belongs in the image.
 
+Progress resumes even when preparation fails. If the configured user could not be established, later commands refuse to reuse the container.
+
 A failed `setup` is reported to the agent and the environment is still usable, because a half-prepared environment the agent knows about is more use than none. Expect to see it work round the gap, and say that it did.
 
 Each environment starts only when the agent first asks for it, and a cold start costs a couple of minutes, so a project with several never pays for the ones a run did not use.
@@ -167,7 +169,7 @@ Two things are ours and not negotiable: `docker run` and its flags, so no projec
 
 **The file is read from your default branch, never from the pull request.** It decides what runs on the runner, so a pull request must not be able to choose it.
 
-With no such file the agent reads, writes and answers, and the gate refuses to run anything.
+With no such file the agent can use the workspace shell, but no development environments are available.
 
 ## How it works
 

@@ -23,6 +23,6 @@ while read -r old new ref; do
     git update-ref "$ref" "$old"
     echo "${BOT_NAME}: GitHub refused the push; the commit is only in the sandbox"
     echo "${BOT_NAME}: the branch most likely moved since this run started"
-    echo "${BOT_NAME}: push again to try it again"
+    echo "${BOT_NAME}: if the branch moved, start a new run from its current head before pushing"
   fi
 done

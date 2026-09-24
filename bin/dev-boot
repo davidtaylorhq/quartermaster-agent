@@ -8,6 +8,7 @@ set -euo pipefail
 NAME="$1"
 LOG="${RUNNER_TEMP:-/tmp}/dev-up.log"
 CONTAINER="workflow-agent-dev-$NAME"
+USABLE="${RUNNER_TEMP:-/tmp}/dev-$NAME.usable"
 
 # This runs behind the gate, so anything printed here would land in the middle
 # of the output the agent asked for.
@@ -35,12 +36,15 @@ if found=$(docker inspect -f '{{.State.Status}}' "$CONTAINER" 2>/dev/null); then
 fi
 
 case "$status" in
-  running) exit 0 ;;
+  running)
+    [ -f "$USABLE" ] || fatal "initialization did not establish a usable environment"
+    exit 0 ;;
   none)    ;;
   *)       fatal "the environment $status and will not be started again" ;;
 esac
 
 progress interrupt "Preparing $NAME"
+trap 'progress resume' EXIT
 
 IMAGE=$(field image)
 MOUNT=$(field mount)
@@ -70,6 +74,9 @@ if [ -n "$USER_NAME" ]; then
   ' sh "$USER_NAME" >>"$LOG" 2>&1 || fatal "could not give $USER_NAME uid 1000"
 fi
 
+# A failed project setup can still be inspected, once the user is usable.
+touch "$USABLE"
+
 if [ -n "$SETUP" ]; then
   note "setting up"
   if ! docker exec -i ${USER_NAME:+-u "$USER_NAME"} -w "$MOUNT" -e CI=1 \
@@ -78,5 +85,4 @@ if [ -n "$SETUP" ]; then
   fi
 fi
 
-progress resume
 note "ready"
