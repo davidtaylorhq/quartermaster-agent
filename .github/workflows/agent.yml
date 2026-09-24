@@ -31,7 +31,7 @@ on:
         type: string
         default: ""
       task:
-        description: "Optional task supplied by a calling workflow for the original authorized comment."
+        description: "Optional task authorized by the calling workflow; bypasses mention discovery and commenter checks."
         type: string
         default: ""
       allowed-branches:
@@ -53,10 +53,6 @@ on:
         description: "Who may instruct the agent, as GitHub author associations."
         type: string
         default: "OWNER,MEMBER,COLLABORATOR"
-      trusted-logins:
-        description: "Additional GitHub logins allowed to instruct the agent, comma-separated. May include explicitly trusted bots."
-        type: string
-        default: ""
       followup-window:
         description: "Seconds the sandbox is held open after replying, for a follow-up."
         type: number
@@ -95,18 +91,14 @@ on:
 
 jobs:
   respond:
-    # The same question `claim` asks, asked before anything boots.
-    # Keep the two in step.
+    # Explicit tasks are authorized by the calling workflow.
     if: >-
-      (inputs.task != '' || contains(github.event.comment.body, inputs.mention)) &&
+      inputs.task != '' ||
       (
+        contains(github.event.comment.body, inputs.mention) &&
         contains(
           format(',{0},', inputs.trusted-associations),
           format(',{0},', github.event.comment.author_association)
-        ) ||
-        contains(
-          format(',{0},', inputs.trusted-logins),
-          format(',{0},', github.event.comment.user.login)
         )
       )
     runs-on: ${{ inputs.runs-on }}
@@ -131,7 +123,6 @@ jobs:
       ALLOWED_BRANCHES: ${{ inputs.allowed-branches }}
       DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
       TRUSTED_ASSOCIATIONS: ${{ inputs.trusted-associations }}
-      TRUSTED_LOGINS: ${{ inputs.trusted-logins }}
       FOLLOWUP_WINDOW: ${{ inputs.followup-window }}
       MAX_COMMENT_AGE_HOURS: ${{ inputs.max-comment-age-hours }}
       MAX_TURNS: ${{ inputs.max-turns }}
@@ -187,6 +178,12 @@ jobs:
         env:
           COMMENT: ${{ github.event.comment.id }}
         run: |
+          echo "RUN_STARTED=$(date +%s%3N)" >> "$GITHUB_ENV"
+          if [ -n "$AGENT_TASK" ]; then
+            echo "ours=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           # GitHub answers 201 when it added the reaction and 200 when it was
           # already there, which settles whether this run has anything to do.
           status=$(curl -sS -o "$RUNNER_TEMP/reaction.json" -w '%{http_code}' -X POST \
@@ -195,8 +192,6 @@ jobs:
             -d '{"content":"eyes"}' \
             "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/issues/comments/$COMMENT/reactions")
 
-          # Everything before this was queueing and provisioning.
-          echo "RUN_STARTED=$(date +%s%3N)" >> "$GITHUB_ENV"
           case "$status" in
             201)
               mkdir -p "$RUNNER_TEMP/pending-claims"
@@ -359,7 +354,7 @@ jobs:
           workflow-agent/bin/containers-up.ts
           workflow-agent/bin/converse.ts first
       - name: Answer anything that follows
-        if: steps.seen.outputs.ours == 'true'
+        if: steps.seen.outputs.ours == 'true' && inputs.task == ''
         run: workflow-agent/bin/converse.ts followups
       - name: Say the run ended early
         if: (failure() || cancelled()) && steps.seen.outputs.ours == 'true'

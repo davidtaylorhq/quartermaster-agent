@@ -43,7 +43,9 @@ export function first(
     );
   }
 
-  out.push("--- what you are answering ---", answering.trimEnd());
+  if (answering.trim()) {
+    out.push("--- what you are answering ---", answering.trimEnd());
+  }
   if (task.trim()) {
     out.push("", "--- workflow task for this request ---", task.trim());
   }

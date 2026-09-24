@@ -20,6 +20,10 @@ function progress(...args: string[]) {
 }
 
 const opening = process.argv[2] !== "followups";
+const task = process.env.AGENT_TASK;
+if (!opening && task) {
+  process.exit(0);
+}
 
 // The development environment runs behind the gate, so this log is the only
 // way its output reaches the runner.
@@ -62,7 +66,11 @@ const where: Situation = {
 };
 
 try {
-  if (opening) {
+  if (task) {
+    progress("next");
+    await turn(first(where, await thread(new Set()), "", task), false);
+    progress("done");
+  } else if (opening) {
     // One run is queued per issue, so a comment displaced from that queue has
     // nothing else looking for it. Take those too.
     const asked = await claim(false);
@@ -73,10 +81,7 @@ try {
       // The sandbox is up. `turn` marks the rest.
       progress("next");
       const history = await thread(new Set(asked.map((m) => String(m.id))));
-      await turn(
-        first(where, history, render(asked), process.env.AGENT_TASK),
-        false
-      );
+      await turn(first(where, history, render(asked)), false);
     }
   } else {
     while (true) {

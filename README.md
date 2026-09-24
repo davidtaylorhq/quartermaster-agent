@@ -61,18 +61,17 @@ Pass these under the caller's `with:`:
 | `provider` | term-llm provider or `provider:model`; omit for automatic selection |
 | `term-llm-config` | Optional config file, read from your default branch |
 | `allowed-branches` | Additional push destinations: one full branch-name JavaScript regex per line |
-| `task` | Task from a calling workflow, tied to the original authorized issue comment |
+| `task` | Task authorized by a calling workflow, executed once without mention checks |
 | `instructions` | Optional Markdown file appended to the system prompt, read from your default branch |
 | `environments` | Alternative path to the development environment file |
 | `trusted-associations` | Who may instruct the bot |
-| `trusted-logins` | Additional authorized logins, comma-separated; allows explicitly named bots |
 | `agent-timeout` | Agent time limit; default `10m` |
 
 Set `instructions: .github/workflow-agent/instructions.md` for bot-specific guidance such as tone and review priorities. The file supplements the built-in prompt; it does not change tools or publishing. An explicitly configured file must exist. Repository `AGENTS.md` files and skills are still read from the working checkout.
 
 The original same-repository PR branch is writable. To permit additional branches, set `allowed-branches`, for example `backport/[0-9]+\.[0-9]+/${{ github.event.issue.number }}`. Patterns match the whole name; the default branch, tags and deletions are blocked. Pushes reject changes made to the destination since startup. The `open_pull_request` tool opens a PR from an allowed head branch to an existing base branch, or returns the existing open PR. It cannot merge.
 
-A follow-on job can call this workflow with `task` to handle the result of earlier automation. It retains the original `issue_comment` event and author checks, and does not require a new bot mention. Include a link to any detailed result comment in the task; thread excerpts are truncated.
+A follow-on job can call this workflow with `task` to handle the result of earlier automation. The caller is responsible for authorization. Task runs use the original `issue_comment` event for repository/thread context, bypass mention discovery and commenter checks, and do not claim reactions or wait for follow-ups. Include a link to any detailed result comment in the task; thread excerpts are truncated.
 
 `provider-env` accepts multiple `NAME=value` lines. For a Claude subscription, use `provider: claude-bin` with `CLAUDE_CODE_OAUTH_TOKEN` instead of the API key above.
 
