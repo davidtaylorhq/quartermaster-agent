@@ -134,3 +134,13 @@ test("the gate reads Bash-quoted multiline configuration literally", () => {
   assert.equal(out.status, 1);
   assert.match(out.stderr, /first\nsecond: not permitted/);
 });
+
+test("workspace shell enters the fixed unprivileged container without host credentials", () => {
+  const out = ask("workspace-shell", '{"command":"id"}');
+  assert.equal(out.status, 0);
+  assert.equal(
+    out.stdout.trim(),
+    "docker exec -i -u agent -w /src -e HOME=/home/agent workflow-agent-sandbox /usr/local/bin/workspace-shell"
+  );
+  assert.equal(ask("workspace-shell arbitrary-arguments").status, 1);
+});

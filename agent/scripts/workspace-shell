@@ -1,0 +1,8 @@
+#!/bin/bash
+set -euo pipefail
+
+# Forward JSON untouched. Only the sandbox may interpret its command.
+exec ssh -T -i "$HOME/.ssh/gate" -p "${SSH_PORT:?}" \
+  -o BatchMode=yes -o ConnectTimeout=10 \
+  -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+  "${GATE_USER:?}@host.docker.internal" workspace-shell

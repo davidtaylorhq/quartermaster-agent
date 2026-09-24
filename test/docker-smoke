@@ -65,6 +65,19 @@ docker exec -u agent workflow-agent-sandbox sh -ec '
 '
 [ "$(cat "$WORKTREE/smoke")" = smoke ]
 
+# Exercise the actual tool script over SSH, beyond the HTTP header deadline.
+shell_tool() {
+  docker exec -i -u agent -e HOME=/home/agent -e ANTHROPIC_API_KEY=smoke-model-secret \
+    workflow-agent-client /home/agent/.config/term-llm/agents/workflow-agent/scripts/workspace-shell
+}
+result=$(printf '%s' '{"command":"test -z \"$ANTHROPIC_API_KEY$GH_TOKEN\" && test \"$(id -u)\" = 1000 && sleep 125 && printf ssh-shell-ok","timeout_seconds":150}' | shell_tool)
+[ "$result" = ssh-shell-ok ]
+set +e
+printf '%s' '{"command":"sleep 30","timeout_seconds":1}' | shell_tool
+status=$?
+set -e
+[ "$status" = 124 ]
+
 # The private MCP service requires its bearer token, and is the main process.
 code=$(docker exec workflow-agent-client curl -s -o /dev/null -w '%{http_code}' \
   http://workflow-agent-sandbox:8080/mcp)

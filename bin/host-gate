@@ -7,6 +7,10 @@
 . "$HOME/.workflow-agent/env"
 
 case "$SSH_ORIGINAL_COMMAND" in
+  workspace-shell)
+    exec docker exec -i -u agent -w /src -e HOME=/home/agent \
+      workflow-agent-sandbox /usr/local/bin/workspace-shell
+    ;;
   mcp)
     exec docker run -i --rm \
       -e GITHUB_PERSONAL_ACCESS_TOKEN \

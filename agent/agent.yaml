@@ -6,6 +6,28 @@ skills: "all"
 
 tools:
   enabled: [update_plan]
+  custom:
+    - name: workspace_shell
+      description: "Run a shell command in the workspace sandbox. Use dev <environment> <command> for development runtimes. Returns stdout, stderr and exit status."
+      script: scripts/workspace-shell
+      call: json
+      timeout_seconds: 660
+      input:
+        type: object
+        properties:
+          command:
+            type: string
+            description: "Bash command to execute inside the sandbox"
+          working_dir:
+            type: string
+            description: "Directory inside the sandbox; defaults to /src"
+          timeout_seconds:
+            type: integer
+            minimum: 1
+            maximum: 600
+            description: "Command deadline in seconds; defaults to 600 to allow development environment startup"
+        required: [command]
+        additionalProperties: false
 
 mcp:
   - name: github

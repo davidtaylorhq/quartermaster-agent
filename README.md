@@ -108,7 +108,9 @@ They are masked before they reach a log, never written into the docker command l
 
 The model client runs in its own container with the provider credentials. It calls providers directly, including the Claude CLI for subscriptions. Provider URLs and TLS keep their normal behaviour.
 
-Repository work happens in a separate sandbox. That container receives neither model nor GitHub credentials. It runs `term-llm serve mcp`, exposing only `read_file`, `write_file`, `edit_file`, `glob`, `grep`, and `shell`. The agent connects over Docker's private bridge using a per-run bearer token; the tool server has no published port.
+Repository work happens in a separate sandbox. That container receives neither model nor GitHub credentials. It runs `term-llm serve mcp`, exposing only `read_file`, `write_file`, `edit_file`, `glob`, and `grep`. Shell commands use the trusted `workspace_shell` script tool over SSH instead of MCP HTTP. Its command, working directory (default `/src`) and timeout (default and maximum 600 seconds) are interpreted inside the workspace container. The container enforces the deadline; the local tool allows 660 seconds for transport and cleanup. This avoids the MCP client's two-minute response-header timeout during long commands and development environment startup.
+
+The agent connects over Docker's private bridge using a per-run bearer token; the tool server has no published port.
 
 The agent container has no repository mount or Docker socket. Its configuration and SSH gate key are mounted read-only. A separate writable output directory holds `finish.json` and `findings.jsonl`, which the runner reads directly. Conversation state stays inside the container. Both containers use the same runtime image, but have separate filesystems. Only the work sandbox mounts the checkout.
 
@@ -179,6 +181,7 @@ The model client and workspace tools run in separate containers, neither holding
 
 | | said by |
 |---|---|
+| `workspace-shell` | the trusted `workspace_shell` tool, to execute inside the work sandbox |
 | `dev <environment>` | the agent, to run a command somewhere with a runtime |
 | `mcp` | term-llm, to reach the GitHub MCP server |
 | `git-receive-pack` | git, when the agent runs `git push` |
@@ -209,4 +212,4 @@ A failed or cancelled run releases its mention reactions only if publication has
 
 Run `npm test`, `npm run check`, and `npm run lint`. To include the MCP integration test, set `TERM_LLM_BINARY` to the term-llm binary matching `TERM_LLM_VERSION` in `sandbox/Dockerfile`. CI installs that version automatically. The test runs a real tool server and agent against a scripted model endpoint, without provider or GitHub credentials, and checks workspace operations, review findings, and session resume.
 
-CI also builds the runtime and runs `test/docker-smoke` on a disposable Docker runner. It checks actual read-only configuration and writable output mounts, uid ownership, SSH gate authentication, MCP authentication, and service exit. The smoke test uses placeholder credentials and does not call a model or write to GitHub.
+CI also builds the runtime and runs `test/docker-smoke` on a disposable Docker runner. It checks actual read-only configuration and writable output mounts, uid ownership, SSH gate authentication, a shell command lasting longer than two minutes, sandbox-enforced command timeouts, MCP authentication, and service exit. The smoke test uses placeholder credentials and does not call a model or write to GitHub.

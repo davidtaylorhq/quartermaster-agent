@@ -44,7 +44,23 @@ test(
     cpSync(join(root, "agent/skills"), join(config, "skills"), {
       recursive: true,
     });
-    const baseEnv = { PATH: process.env.PATH, LANG: "C.UTF-8" };
+    // Emulate only SSH transport locally; execute the production sandbox runner.
+    const stubs = join(dir, "stubs");
+    mkdirSync(stubs);
+    writeFileSync(
+      join(stubs, "ssh"),
+      `#!/bin/bash
+unset ANTHROPIC_API_KEY
+exec "${join(root, "bin/workspace-shell")}"
+`,
+      { mode: 0o755 }
+    );
+    const baseEnv = {
+      PATH: `${stubs}:${process.env.PATH}`,
+      LANG: "C.UTF-8",
+      SSH_PORT: "2222",
+      GATE_USER: "runner",
+    };
 
     const reservation = createServer();
     reservation.listen(0, "127.0.0.1");
@@ -58,7 +74,7 @@ test(
         "serve",
         "mcp",
         "--tools",
-        "read_file,write_file,edit_file,glob,grep,shell",
+        "read_file,write_file,edit_file,glob,grep",
         "--host",
         "127.0.0.1",
         "--port",
@@ -120,7 +136,13 @@ test(
       ],
       ["glob", { pattern: "*.txt" }],
       ["grep", { pattern: "goodbye", path: "." }],
-      ["shell", { command: 'test -z "$ANTHROPIC_API_KEY" && cat example.txt' }],
+      [
+        "workspace_shell",
+        {
+          command: 'test -z "$ANTHROPIC_API_KEY" && cat example.txt',
+          working_dir: workspace,
+        },
+      ],
       ["activate_skill", { name: "review" }],
       [
         "line_comment",
@@ -154,7 +176,6 @@ test(
           "glob",
           "grep",
           "read_file",
-          "shell",
           "write_file",
         ];
         assert.deepEqual(
@@ -165,6 +186,8 @@ test(
           workspaceTools.every((name) => !names.includes(name)),
           names.join(", ")
         );
+        assert.ok(names.includes("workspace_shell"));
+        assert.ok(!names.includes("shell"));
         const action = actions[next++];
         assert.ok(action, "unexpected model request");
         const [tool, input] = action;
@@ -174,7 +197,6 @@ test(
           "edit_file",
           "glob",
           "grep",
-          "shell",
         ].includes(tool)
           ? names.find((n) => n.includes("workspace") && n.endsWith(tool))
           : names.find((n) => n === tool);

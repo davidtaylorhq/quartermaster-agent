@@ -150,6 +150,8 @@ run(
   `${worktree}:/src`,
   "-v",
   `${join(import.meta.dirname, "workspace-start")}:/usr/local/bin/workspace-start:ro`,
+  "-v",
+  `${join(import.meta.dirname, "workspace-shell")}:/usr/local/bin/workspace-shell:ro`,
   ...(environments.length
     ? ["-v", `${join(import.meta.dirname, "dev")}:/usr/local/bin/dev:ro`]
     : []),
@@ -181,6 +183,10 @@ run(
   `${output}:/output:rw`,
   "-e",
   "OUTPUT_DIR=/output",
+  "-e",
+  `SSH_PORT=${port}`,
+  "-e",
+  `GATE_USER=${user}`,
   image
 );
 
