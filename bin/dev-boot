@@ -21,7 +21,9 @@ progress() {
 
 field() { jq -r --arg n "$NAME" --arg f "$1" '.[$n][$f] // ""' "$ENVIRONMENTS"; }
 
-exec 9>"${RUNNER_TEMP:-/tmp}/dev-$NAME.lock"
+# One environment prepares at a time: the checklist is a single line and
+# cannot say that two of them are starting at once.
+exec 9>"${RUNNER_TEMP:-/tmp}/dev-boot.lock"
 flock 9
 
 # Made once and set up once: a second container over the first one's volumes
@@ -38,7 +40,7 @@ case "$status" in
   *)       fatal "the environment $status and will not be started again" ;;
 esac
 
-progress begin "dev-$NAME" "Preparing $NAME"
+progress interrupt "Preparing $NAME"
 
 IMAGE=$(field image)
 MOUNT=$(field mount)
@@ -76,5 +78,5 @@ if [ -n "$SETUP" ]; then
   fi
 fi
 
-progress end "dev-$NAME"
+progress resume
 note "ready"

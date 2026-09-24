@@ -4,13 +4,14 @@
 //     progress start LABEL...     the list, with the first step under way
 //     progress next [LABEL...]    finish the step under way, add these, start
 //                                 the next one
-//     progress begin ID LABEL     a step of its own, beside whatever is running
-//     progress end ID             finish that one
+//     progress interrupt LABEL    stop the step under way for this one
+//     progress resume             finish that, and pick the stopped step up again
 //     progress done               finish everything
 //     progress stopped WHY        the run ended early; keep what it did
 //
-// A development environment starts while a turn is under way, so it gets a row
-// of its own rather than a place in the line. Each row keeps its own clock.
+// Every row is one line of a single sequence, and each keeps its own clock. A
+// step that interrupts another is never beside it, so only one thing is ever
+// happening: whatever prepares an environment has to wait its turn.
 import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { request } from "../lib/github.ts";
 import { scratch } from "../lib/scratch.ts";
@@ -30,7 +31,12 @@ type Row = {
   started: number | null;
   finished: number | null;
 };
-type State = { rows: Row[]; note?: string; comment?: string };
+type State = {
+  rows: Row[];
+  note?: string;
+  comment?: string;
+  suspended?: string;
+};
 
 function save(state: State): void {
   writeFileSync(`${STATE}.new`, JSON.stringify(state));
@@ -107,9 +113,27 @@ async function publish(): Promise<string | undefined> {
   return id;
 }
 
-// The steps `start` laid out, in the order they happen. A row `begin` adds is
-// not one of them and never takes their turn.
-const inLine = (row: Row) => /^\d+$/.test(row.id);
+// A step that interrupts another goes in after it, not after the steps the
+// line has not reached yet.
+function open(label: string): void {
+  const at = state.rows.findLastIndex((r) => r.started !== null) + 1;
+  state.rows.splice(at, 0, {
+    id: String(state.rows.length),
+    label,
+    started: now,
+    finished: null,
+  });
+}
+
+function close(): Row | undefined {
+  const running = state.rows.find(
+    (r) => r.started !== null && r.finished === null
+  );
+  if (running) {
+    running.finished = now;
+  }
+  return running;
+}
 
 const [command, ...rest] = process.argv.slice(2);
 const state: State =
@@ -150,49 +174,42 @@ if (command === "start") {
   }
 } else if (command === "next") {
   // A follow-up turn adds its own steps to the end of the line.
-  const last = Math.max(
-    -1,
-    ...state.rows.filter(inLine).map((r) => Number(r.id))
-  );
-  rest.forEach((label, i) => {
+  rest.forEach((label) => {
     state.rows.push({
-      id: String(last + 1 + i),
+      id: String(state.rows.length),
       label,
       started: null,
       finished: null,
     });
   });
 
-  const running = state.rows.find(
-    (r) => inLine(r) && r.started !== null && r.finished === null
-  );
-  if (running) {
-    running.finished = now;
-  }
-  const waiting = state.rows.find((r) => inLine(r) && r.started === null);
+  close();
+  const waiting = state.rows.find((r) => r.started === null);
   if (waiting) {
     waiting.started = now;
   }
   await publish();
-} else if (command === "begin") {
-  const [id, label] = rest;
-  if (!id || !label) {
-    console.error("progress begin ID LABEL");
+} else if (command === "interrupt") {
+  const label = rest.join(" ");
+  if (!label) {
+    console.error("progress interrupt LABEL");
     process.exit(64);
   }
-  const row = state.rows.find((r) => r.id === id);
-  if (row) {
-    row.started = now;
-  } else {
-    // Beside what is running, not after the steps that have not run yet.
-    const at = state.rows.findLastIndex((r) => r.started !== null) + 1;
-    state.rows.splice(at, 0, { id, label, started: now, finished: null });
+  const stopped = close();
+  if (stopped) {
+    state.suspended = stopped.label;
+  }
+  open(label);
+  await publish();
+} else if (command === "resume") {
+  close();
+  if (state.suspended) {
+    open(state.suspended);
+    delete state.suspended;
   }
   await publish();
-} else if (command === "end" || command === "done") {
-  for (const row of command === "end"
-    ? state.rows.filter((r) => r.id === rest[0])
-    : state.rows) {
+} else if (command === "done") {
+  for (const row of state.rows) {
     if (row.started === null) {
       row.started = now;
     }
@@ -212,6 +229,6 @@ if (command === "start") {
   state.note = rest.join(" ");
   await publish();
 } else {
-  console.error("progress start|next|begin|end|done|stopped [ARGS...]");
+  console.error("progress start|next|interrupt|resume|done|stopped [ARGS...]");
   process.exit(64);
 }
