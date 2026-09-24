@@ -1,4 +1,4 @@
-name: Quartermaster
+name: Workflow Agent
 
 on:
   workflow_call:
@@ -36,7 +36,7 @@ on:
           run commands in. Without this file the agent reads, writes and
           answers, but runs nothing.
         type: string
-        default: .github/quartermaster/environments.yml
+        default: .github/workflow-agent/environments.yml
       trusted-associations:
         description: "Who may instruct the agent, as GitHub author associations."
         type: string
@@ -107,11 +107,11 @@ jobs:
       MAX_COMMENT_AGE_HOURS: ${{ inputs.max-comment-age-hours }}
       MAX_TURNS: ${{ inputs.max-turns }}
       AGENT_TIMEOUT: ${{ inputs.agent-timeout }}
-      PROGRESS_SCRIPT: ${{ github.workspace }}/quartermaster/bin/progress.ts
+      PROGRESS_SCRIPT: ${{ github.workspace }}/workflow-agent/bin/progress.ts
       PROVIDER: ${{ inputs.provider }}
-      AGENT_DIR: ${{ github.workspace }}/quartermaster/agent
-      FORWARD_SCRIPT: ${{ github.workspace }}/quartermaster/bin/git-forward.ts
-      MODEL_SCRIPT: ${{ github.workspace }}/quartermaster/bin/inference-proxy.ts
+      AGENT_DIR: ${{ github.workspace }}/workflow-agent/agent
+      FORWARD_SCRIPT: ${{ github.workspace }}/workflow-agent/bin/git-forward.ts
+      MODEL_SCRIPT: ${{ github.workspace }}/workflow-agent/bin/inference-proxy.ts
       TERM_LLM_CONFIG: ${{ inputs.term-llm-config && format('{0}/project/{1}', github.workspace, inputs.term-llm-config) || '' }}
       GITHUB_TOOLSETS: pull_requests,issues
       HAS_APP: ${{ secrets.app-id != '' }}
@@ -205,14 +205,14 @@ jobs:
             lib
             vendor
             agent
-          path: quartermaster
+          path: workflow-agent
           persist-credentials: false
       - name: Resolve the pull request
         if: steps.seen.outputs.ours == 'true'
         id: pr
         env:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-        run: quartermaster/bin/resolve.ts
+        run: workflow-agent/bin/resolve.ts
       - name: Clone the work tree
         if: steps.seen.outputs.ours == 'true'
         id: worktree
@@ -277,14 +277,14 @@ jobs:
         if: steps.seen.outputs.ours == 'true'
         env:
           PROVIDER_ENV: ${{ secrets.provider-env }}
-        run: quartermaster/bin/provider-env.ts "$RUNNER_TEMP/provider.env" "$RUNNER_TEMP/model-routes.json"
+        run: workflow-agent/bin/provider-env.ts "$RUNNER_TEMP/provider.env" "$RUNNER_TEMP/model-routes.json"
       - name: Say we are on it
         if: steps.seen.outputs.ours == 'true'
         id: ack
         env:
           ASKED: ${{ github.event.comment.created_at }}
         run: |
-          id=$(quartermaster/bin/progress.ts start \
+          id=$(workflow-agent/bin/progress.ts start \
                  "Waiting for GitHub to start the workflow" \
                  "Preparing the sandbox" \
                  "Working" \
@@ -299,22 +299,22 @@ jobs:
           ENVIRONMENTS: ${{ inputs.environments }}
         run: |
           # Later than this, the bot has already said it is working on it.
-          quartermaster/bin/environments.ts \
+          workflow-agent/bin/environments.ts \
             "project/$ENVIRONMENTS" "$RUNNER_TEMP/environments.json"
           echo "ENVIRONMENTS_JSON=$RUNNER_TEMP/environments.json" >> "$GITHUB_ENV"
       - name: Wait for the image and the work tree
         wait: [pull, worktree]
       - name: Stand up the host services
         if: steps.seen.outputs.ours == 'true'
-        run: quartermaster/bin/host-setup
+        run: workflow-agent/bin/host-setup
       - name: Run the agent
         if: steps.seen.outputs.ours == 'true'
         run: |
-          quartermaster/bin/sandbox-up
-          quartermaster/bin/converse.ts first
+          workflow-agent/bin/sandbox-up
+          workflow-agent/bin/converse.ts first
       - name: Answer anything that follows
         if: steps.seen.outputs.ours == 'true'
-        run: quartermaster/bin/converse.ts followups
+        run: workflow-agent/bin/converse.ts followups
       - name: Say the run ended early
         if: (failure() || cancelled()) && steps.seen.outputs.ours == 'true'
         env:
@@ -323,4 +323,4 @@ jobs:
           [ "$HOW" = failure ] \
             && said="The run failed." \
             || said="The run stopped before it could answer."
-          quartermaster/bin/progress.ts stopped "$said [View the log]($RUN_URL)."
+          workflow-agent/bin/progress.ts stopped "$said [View the log]($RUN_URL)."

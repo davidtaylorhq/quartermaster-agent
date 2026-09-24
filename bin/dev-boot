@@ -3,11 +3,11 @@
 # what to run; the flags that keep the sandbox shut are set here.
 set -euo pipefail
 
-. "$HOME/.quartermaster/env"
+. "$HOME/.workflow-agent/env"
 
 NAME="$1"
 LOG="${RUNNER_TEMP:-/tmp}/dev-up.log"
-CONTAINER="quartermaster_dev_$NAME"
+CONTAINER="workflow-agent-dev-$NAME"
 
 # This runs behind the gate, so anything printed here would land in the middle
 # of the output the agent asked for.

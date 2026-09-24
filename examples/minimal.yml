@@ -7,7 +7,7 @@ on:
 
 jobs:
   respond:
-    uses: davidtaylorhq/quartermaster-agent/.github/workflows/quartermaster.yml@main
+    uses: davidtaylorhq/workflow-agent/.github/workflows/agent.yml@main
     permissions:
       contents: write
       pull-requests: write

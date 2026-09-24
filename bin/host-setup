@@ -8,7 +8,7 @@ step() { echo "[host] $*" >&2; }
 : "${RUNNER_TEMP:?}" "${HEAD_REF:?}" "${GITHUB_REPOSITORY:?}"
 : "${GH_TOKEN:?}" "${MODEL_ROUTES:?}"
 
-STATE="$HOME/.quartermaster"
+STATE="$HOME/.workflow-agent"
 RELAY="$RUNNER_TEMP/relay.git"
 PUSHED="$RUNNER_TEMP/relay.pushed"
 SSH_PORT=2222
@@ -65,7 +65,7 @@ put PUSH_BLOCKED_BECAUSE "${PUSH_BLOCKED_BECAUSE:-}"
 
 cat > "$RELAY/hooks/update" <<'HOOK'
 #!/bin/bash
-. "$HOME/.quartermaster/env"
+. "$HOME/.workflow-agent/env"
 if [ "$1" != "refs/heads/$HEAD_REF" ]; then
   echo "${BOT_NAME}: only $HEAD_REF may be pushed from the sandbox" >&2
   exit 1
@@ -75,7 +75,7 @@ HOOK
 # Git ignores what post-receive exits with, so a failed forward must say so.
 cat > "$RELAY/hooks/post-receive" <<'HOOK'
 #!/bin/bash
-. "$HOME/.quartermaster/env"
+. "$HOME/.workflow-agent/env"
 while read -r old new ref; do
   [ "$ref" = "refs/heads/$HEAD_REF" ] || continue
 

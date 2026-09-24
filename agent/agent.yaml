@@ -1,4 +1,4 @@
-name: quartermaster
+name: workflow-agent
 description: "Answers GitHub comments, reviews code, and authors changes"
 time_grounding: true
 agents_md: "true"

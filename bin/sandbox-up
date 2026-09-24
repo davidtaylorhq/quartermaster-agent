@@ -9,7 +9,7 @@ set -Eeuo pipefail
 : "${FORWARD_PORT:?}" "${GITHUB_REPOSITORY:?}" "${MODEL_PORT:?}"
 
 
-CONTAINER=quartermaster_sandbox
+CONTAINER=workflow-agent-sandbox
 SKILLS_DIR="$AGENT_DIR/skills"
 MCP_TEMPLATE="$AGENT_DIR/mcp.json"
 HOME_DIR=/home/agent
@@ -125,7 +125,7 @@ if [ "$(jq 'length' "$ENVIRONMENTS_JSON")" != 0 ]; then
     echo "The first command into an environment takes a few minutes while it starts; afterwards they are quick. Do not start one you have nothing to run in."
   } >> "$AGENT_TMP/system.md"
 fi
-docker cp "$AGENT_TMP/." "$CONTAINER:$HOME_DIR/.config/term-llm/agents/quartermaster"
+docker cp "$AGENT_TMP/." "$CONTAINER:$HOME_DIR/.config/term-llm/agents/workflow-agent"
 docker cp "$SKILLS_DIR/." "$CONTAINER:$HOME_DIR/.config/term-llm/skills"
 sed -e "s#__KEY__#$HOME_DIR/.ssh/gate#" \
     -e "s#__SSH_PORT__#$SSH_PORT#" \

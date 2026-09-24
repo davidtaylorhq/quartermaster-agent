@@ -33,7 +33,7 @@ before(() => {
   home = mkdtempSync(join(tmpdir(), "gate-home-"));
   relay = join(home, "relay.git");
   stubs = join(home, "stubs");
-  mkdirSync(join(home, ".quartermaster"), { recursive: true });
+  mkdirSync(join(home, ".workflow-agent"), { recursive: true });
   mkdirSync(stubs);
 
   execFileSync("git", ["init", "-q", "--bare", relay]);
@@ -58,22 +58,22 @@ before(() => {
   writeFileSync(join(stubs, "docker"), '#!/bin/sh\necho "docker $*"\n');
   chmodSync(join(stubs, "docker"), 0o755);
   writeFileSync(
-    join(home, ".quartermaster", "dev-boot"),
+    join(home, ".workflow-agent", "dev-boot"),
     "#!/bin/sh\nexit 0\n"
   );
-  chmodSync(join(home, ".quartermaster", "dev-boot"), 0o755);
+  chmodSync(join(home, ".workflow-agent", "dev-boot"), 0o755);
 
   writeFileSync(
-    join(home, ".quartermaster", "environments.json"),
+    join(home, ".workflow-agent", "environments.json"),
     JSON.stringify({ rails: { user: "discourse", mount: "/src" } })
   );
   writeFileSync(
-    join(home, ".quartermaster", "env"),
+    join(home, ".workflow-agent", "env"),
     [
       `export RELAY=${relay}`,
       `export BOT_NAME=testbot`,
       `export MCP_IMAGE=ghcr.io/example/mcp:1`,
-      `export ENVIRONMENTS=${join(home, ".quartermaster", "environments.json")}`,
+      `export ENVIRONMENTS=${join(home, ".workflow-agent", "environments.json")}`,
       "",
     ].join("\n")
   );
@@ -110,7 +110,7 @@ test("a declared environment runs as the user and at the mount it declared", () 
   const out = ask("dev rails");
   assert.match(
     out.stdout,
-    /docker exec -i -u discourse -w \/src -e CI=1 quartermaster_dev_rails bash -l/
+    /docker exec -i -u discourse -w \/src -e CI=1 workflow-agent-dev-rails bash -l/
   );
 });
 

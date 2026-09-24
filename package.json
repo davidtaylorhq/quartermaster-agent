@@ -1,5 +1,5 @@
 {
-  "name": "quartermaster-agent",
+  "name": "workflow-agent",
   "private": true,
   "type": "module",
   "scripts": {

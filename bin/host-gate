@@ -4,7 +4,7 @@
 #
 # A forced command in authorized_keys: it matches the verb and supplies its own
 # arguments, discarding the client's.
-. "$HOME/.quartermaster/env"
+. "$HOME/.workflow-agent/env"
 
 case "$SSH_ORIGINAL_COMMAND" in
   mcp)
@@ -24,14 +24,14 @@ case "$SSH_ORIGINAL_COMMAND" in
     fi
 
     # stdin is the agent's command; the boot must not consume it.
-    "$HOME/.quartermaster/dev-boot" "$name" </dev/null || exit 1
+    "$HOME/.workflow-agent/dev-boot" "$name" </dev/null || exit 1
 
     user=$(jq -r --arg n "$name" '.[$n].user // ""' "$ENVIRONMENTS")
     mount=$(jq -r --arg n "$name" '.[$n].mount' "$ENVIRONMENTS")
     if [ -n "$user" ]; then
-      exec docker exec -i -u "$user" -w "$mount" -e CI=1 "quartermaster_dev_$name" bash -l
+      exec docker exec -i -u "$user" -w "$mount" -e CI=1 "workflow-agent-dev-$name" bash -l
     fi
-    exec docker exec -i -w "$mount" -e CI=1 "quartermaster_dev_$name" bash -l
+    exec docker exec -i -w "$mount" -e CI=1 "workflow-agent-dev-$name" bash -l
     ;;
   git-receive-pack*)
     exec git-receive-pack "$RELAY"

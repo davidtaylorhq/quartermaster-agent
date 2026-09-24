@@ -9,7 +9,7 @@ jobs:
   respond:
     # The backport bot answers to the same name and is not this one.
     if: "!contains(github.event.comment.body, '@discoursebot backport')"
-    uses: davidtaylorhq/quartermaster-agent/.github/workflows/quartermaster.yml@main
+    uses: davidtaylorhq/workflow-agent/.github/workflows/agent.yml@main
     permissions:
       contents: write
       pull-requests: write

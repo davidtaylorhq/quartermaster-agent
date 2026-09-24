@@ -9,7 +9,7 @@ import { pipeline } from "node:stream/promises";
 
 export type Routes = Record<string, { upstream: string; key: string }>;
 
-export const PLACEHOLDER = "quartermaster-holds-this-key";
+export const PLACEHOLDER = "workflow-agent-holds-this-key";
 
 // Set here: the body is streamed, so its length changes, and this is a new hop.
 const OURS = ["host", "connection", "content-length", "transfer-encoding"];

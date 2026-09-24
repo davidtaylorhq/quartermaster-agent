@@ -64,7 +64,7 @@ function ask(prompt: string, resume: boolean): number {
     `${sandbox.home}/.local/bin/term-llm`,
     "ask",
     "--agent",
-    "quartermaster",
+    "workflow-agent",
     ...(process.env.PROVIDER ? ["--provider", process.env.PROVIDER] : []),
     "--session-db",
     `${sandbox.home}/session.db`,

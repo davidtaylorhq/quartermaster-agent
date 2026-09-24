@@ -1,4 +1,4 @@
-# Quartermaster
+# Workflow Agent
 
 Multi-purpose agent for GitHub issues and pull requests. Connect any LLM, with your own keys.
 
@@ -18,7 +18,7 @@ on:
 
 jobs:
   respond:
-    uses: davidtaylorhq/quartermaster-agent/.github/workflows/quartermaster.yml@main
+    uses: davidtaylorhq/workflow-agent/.github/workflows/agent.yml@main
     permissions:
       contents: write
       pull-requests: write
@@ -39,7 +39,7 @@ jobs:
 | `bot-login` | `github-actions[bot]` | Login the agent's comments appear under. A GitHub App settles this itself |
 | `provider` | unset | Passed to term-llm as `--provider` |
 | `term-llm-config` | unset | Path to a term-llm configuration of your own |
-| `environments` | `.github/quartermaster/environments.yml` | What the agent may run commands in |
+| `environments` | `.github/workflow-agent/environments.yml` | What the agent may run commands in |
 | `trusted-associations` | `OWNER,MEMBER,COLLABORATOR` | Who may instruct the agent |
 | `followup-window` | `60` | Seconds the sandbox is held open for a follow-up |
 | `max-comment-age-hours` | `1` | Older mentions are left alone |
@@ -56,8 +56,8 @@ carry the app's name and avatar:
 
 ```yaml
 secrets:
-  app-id: ${{ secrets.QUARTERMASTER_APP_ID }}
-  app-private-key: ${{ secrets.QUARTERMASTER_APP_KEY }}
+  app-id: ${{ secrets.WORKFLOW_AGENT_APP_ID }}
+  app-private-key: ${{ secrets.WORKFLOW_AGENT_APP_KEY }}
 ```
 
 The app needs write on issues, pull requests and contents, and it has to be
@@ -122,7 +122,7 @@ What remains for those is that the agent's own process holds the key. Nothing ch
 
 ## Running tests and linters
 
-The sandbox holds git and little else. Anything needing a language runtime or a database runs in a container you describe, in `.github/quartermaster/environments.yml`:
+The sandbox holds git and little else. Anything needing a language runtime or a database runs in a container you describe, in `.github/workflow-agent/environments.yml`:
 
 ```yaml
 environments:
