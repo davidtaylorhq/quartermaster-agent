@@ -63,7 +63,7 @@ Pass these under the caller's `with:`:
 
 `provider-env` accepts multiple `NAME=value` lines. For a Claude subscription, use `provider: claude-bin` with `CLAUDE_CODE_OAUTH_TOKEN` instead of the API key above.
 
-To use a GitHub App identity and let agent pushes trigger CI, also pass `app-id` and `app-private-key` under `secrets:`. Install the app on the repository with write access to contents, issues, and pull requests. Otherwise the bot uses `GITHUB_TOKEN` and replies as `github-actions[bot]`.
+To use a GitHub App identity and let agent pushes trigger CI, also pass `app-id` and `app-private-key` under `secrets:`. Install the app on the repository with write access to contents, issues, and pull requests. Each run's token is restricted to the calling repository and those three permissions; the app's private key itself remains app-wide. Otherwise the bot uses `GITHUB_TOKEN` and replies as `github-actions[bot]`.
 
 See the [workflow definition](.github/workflows/agent.yml) for all inputs and defaults.
 
