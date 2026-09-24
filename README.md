@@ -71,37 +71,30 @@ See the [workflow definition](.github/workflows/agent.yml) for all inputs and de
 
 The agent container holds model credentials; repository operations run in separate containers. File tools use MCP over HTTP. The `workspace_shell` wrapper sends shell commands through SSH, with a ten-minute limit enforced inside the workspace. The runner controls GitHub access and publishes replies.
 
-```mermaid
-flowchart TB
-  llm["Model provider"]
-  github["GitHub"]
-
-  subgraph runner["GitHub Actions runner"]
-    agent["Agent container<br/>term-llm + workspace_shell"]
-    workspace["Workspace container · /src<br/>MCP file tools · shell · git · dev wrapper"]
-    gate["SSH gate<br/>Fixed commands only"]
-    dev["Development containers<br/>Shared checkout · started on demand"]
-    mcp["GitHub MCP container<br/>Read-only API tools"]
-    fetch["Git read forwarder"]
-    relay["Git push relay<br/>Only the permitted PR branch"]
-    reply["Reply publisher"]
-
-    agent -->|"File tools · HTTP"| workspace
-    agent -->|"workspace_shell / GitHub MCP · SSH"| gate
-    gate -->|"docker exec · shell"| workspace
-    workspace -->|"dev / git push · SSH"| gate
-    gate -->|"Start and execute"| dev
-    gate -->|"MCP over stdio"| mcp
-    gate --> relay
-    workspace -->|"git fetch"| fetch
-    agent -->|"Output mount"| reply
-  end
-
-  agent --> llm
-  mcp --> github
-  fetch --> github
-  relay --> github
-  reply --> github
+```text
++-- GitHub Actions runner --------------------------------------------------+
+|                                                                          |
+|  +-------------------+                  +----------------------------+   |
+|  | Agent container   |-- MCP/HTTP ----->| Workspace container        |   |
+|  | term-llm          |                  | File tools, shell, Git     |   |
+|  +-------------------+                  +----------------------------+   |
+|            |                                          |                  |
+|            | SSH                                      | SSH: dev, push   |
+|            v                                          |                  |
+|  +-------------------+                                |                  |
+|  | Runner SSH gate   |<-------------------------------+                  |
+|  |                   |-- docker exec --> workspace shell                 |
+|  +------+------------+                                                   |
+|         +------------------------------------------+                     |
+|         |                                          |                     |
+|         | MCP/stdio                                | docker exec         |
+|         v                                          v                     |
+|  +---------------------------+          +----------------------------+   |
+|  | GitHub MCP container      |          | Development containers     |   |
+|  | Read-only GitHub tools    |          | Share the checkout         |   |
+|  +---------------------------+          +----------------------------+   |
+|                                                                          |
++--------------------------------------------------------------------------+
 ```
 
 The agent has no checkout mount or Docker socket. Its config and SSH key are read-only mounts. Model credentials stay out of workspace and development containers; GitHub credentials stay with the runner-side services. Containers have outbound network access.
