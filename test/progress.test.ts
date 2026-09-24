@@ -116,6 +116,18 @@ test("environments are timed beside the line, not in it", () => {
   );
   assert.equal(b.state_of("2"), "running", "the turn was never displaced");
   assert.equal(b.state_of("3"), "pending");
+  assert.deepEqual(
+    b.rows().map((r) => r.label),
+    [
+      "Waiting",
+      "Preparing",
+      "Working",
+      "Preparing rails",
+      "Preparing frontend",
+      "Replying",
+    ],
+    "an environment sits beside the step that started it"
+  );
   b.done();
 });
 

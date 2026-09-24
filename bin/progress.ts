@@ -184,7 +184,9 @@ if (command === "start") {
   if (row) {
     row.started = now;
   } else {
-    state.rows.push({ id, label, started: now, finished: null });
+    // Beside what is running, not after the steps that have not run yet.
+    const at = state.rows.findLastIndex((r) => r.started !== null) + 1;
+    state.rows.splice(at, 0, { id, label, started: now, finished: null });
   }
   await publish();
 } else if (command === "end" || command === "done") {
