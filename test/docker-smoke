@@ -1,0 +1,72 @@
+#!/bin/bash
+# Run on a disposable Linux runner with Docker and passwordless sudo.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+export SANDBOX_IMAGE="${SANDBOX_IMAGE:-workflow-agent-smoke}"
+export RUNNER_TEMP="$(mktemp -d)"
+export GITHUB_ENV="$RUNNER_TEMP/github-env"
+export GH_TOKEN=smoke-github-secret
+export HEAD_REF=topic GITHUB_REPOSITORY=example/repo BOT_NAME=smoke
+export ASSET_REPO=example/workflow-agent ASSET_REF=main
+export FORWARD_SCRIPT="$PWD/bin/forward.ts" PROGRESS_SCRIPT=/bin/true
+export ENVIRONMENTS_JSON="$RUNNER_TEMP/environments.json" AGENT_DIR="$PWD/agent"
+export WORKTREE="$RUNNER_TEMP/worktree"
+printf '{}\n' > "$ENVIRONMENTS_JSON"
+touch "$GITHUB_ENV"
+
+cleanup() {
+  docker logs workflow-agent-sandbox || true
+  docker rm -f workflow-agent-client workflow-agent-sandbox || true
+  docker network rm workflow-agent || true
+  sudo rm -rf "$RUNNER_TEMP"
+}
+trap cleanup EXIT
+
+git init -q -b topic "$WORKTREE"
+git -C "$WORKTREE" -c user.name=smoke -c user.email=smoke@example.invalid commit -qm initial --allow-empty
+git -C "$WORKTREE" remote add origin https://github.com/example/repo.git
+cp -r "$WORKTREE/.git" "$RUNNER_TEMP/relay.git"
+sudo chown -R 1000:1000 "$WORKTREE"
+bin/host-setup
+set -a
+. "$GITHUB_ENV"
+set +a
+bin/containers-up.ts
+
+# Authenticate with the real SSH gate, which must refuse arbitrary commands.
+set +e
+gate=$(docker exec -u agent workflow-agent-client ssh -T -i /home/agent/.ssh/gate \
+  -p "$SSH_PORT" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+  "$GATE_USER@host.docker.internal" forbidden 2>&1)
+status=$?
+set -e
+[ "$status" = 1 ]
+[[ "$gate" == *'not permitted'* ]]
+
+# Both filesystems and uid ownership are real mounts, including on uid 1001 runners.
+docker exec -u agent workflow-agent-client sh -ec '
+  test ! -e /src/.git
+  test -z "${GH_TOKEN:-}${ANTHROPIC_API_KEY:-}"
+  test -r /home/agent/.ssh/gate
+  if touch /home/agent/.config/term-llm/forbidden 2>/dev/null; then exit 1; fi
+  printf "{\"reply\":\"smoke\"}" > /output/finish.json
+'
+[ "$(cat "$RUNNER_TEMP/output/finish.json")" = '{"reply":"smoke"}' ]
+rm "$RUNNER_TEMP/output/finish.json"
+docker exec -u agent workflow-agent-sandbox sh -ec '
+  test -z "${GH_TOKEN:-}${ANTHROPIC_API_KEY:-}"
+  test ! -e /output
+  echo smoke > /src/smoke
+'
+[ "$(cat "$WORKTREE/smoke")" = smoke ]
+
+# The private MCP service requires its bearer token, and is the main process.
+code=$(docker exec workflow-agent-client curl -s -o /dev/null -w '%{http_code}' \
+  http://workflow-agent-sandbox:8080/mcp)
+[ "$code" = 401 ]
+[ -z "$(docker port workflow-agent-sandbox)" ]
+docker exec -u agent workflow-agent-sandbox sh -c 'kill -TERM 1'
+docker wait workflow-agent-sandbox >/dev/null
+[ "$(docker inspect -f '{{.State.Running}}' workflow-agent-sandbox)" = false ]
+echo 'Docker mounts, SSH gate, MCP authentication and service lifecycle passed'

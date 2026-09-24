@@ -46,3 +46,18 @@ jobs:
             run: |
               for f in bin/host-setup bin/workspace-start bin/dev-boot bin/dev bin/git-update bin/git-post-receive; do bash -n "$f"; done
               sh -n bin/host-gate
+
+  containers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Build the runtime
+        run: docker build -t workflow-agent-smoke sandbox
+      - name: Exercise container boundaries
+        timeout-minutes: 5
+        run: test/docker-smoke

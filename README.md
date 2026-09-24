@@ -204,3 +204,5 @@ Association is not permission. `MEMBER` means a member of the organisation and `
 ## Developing this workflow
 
 Run `npm test`, `npm run check`, and `npm run lint`. To include the MCP integration test, set `TERM_LLM_BINARY` to the term-llm binary matching `TERM_LLM_VERSION` in `sandbox/Dockerfile`. CI installs that version automatically. The test runs a real tool server and agent against a scripted model endpoint, without provider or GitHub credentials, and checks workspace operations, review findings, and session resume.
+
+CI also builds the runtime and runs `test/docker-smoke` on a disposable Docker runner. It checks actual read-only configuration and writable output mounts, uid ownership, SSH gate authentication, MCP authentication, and service exit. The smoke test uses placeholder credentials and does not call a model or write to GitHub.
