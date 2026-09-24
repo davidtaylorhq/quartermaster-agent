@@ -9,7 +9,7 @@ export GITHUB_ENV="$RUNNER_TEMP/github-env"
 export GH_TOKEN=smoke-github-secret
 export HEAD_REF=topic GITHUB_REPOSITORY=example/repo BOT_NAME=smoke
 export ASSET_REPO=example/workflow-agent ASSET_REF=main
-export FORWARD_SCRIPT="$PWD/bin/forward.ts" PROGRESS_SCRIPT=/bin/true
+export FORWARD_SCRIPT="$PWD/bin/git-forward.ts" PROGRESS_SCRIPT=/bin/true
 export ENVIRONMENTS_JSON="$RUNNER_TEMP/environments.json" AGENT_DIR="$PWD/agent"
 export WORKTREE="$RUNNER_TEMP/worktree"
 printf '{}\n' > "$ENVIRONMENTS_JSON"
@@ -33,6 +33,10 @@ set -a
 . "$GITHUB_ENV"
 set +a
 bin/containers-up.ts
+
+# First-run provider detection must finish before configuration becomes read-only.
+docker exec -u agent -e HOME=/home/agent workflow-agent-client \
+  /home/agent/.local/bin/term-llm agents list
 
 # Authenticate with the real SSH gate, which must refuse arbitrary commands.
 set +e

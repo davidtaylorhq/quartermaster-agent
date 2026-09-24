@@ -212,11 +212,13 @@ for (const resume of [false, true]) {
 }
 
 test("an absent optional provider configuration does not prevent startup", (t) => {
-  const { dir, run } = fixture(t);
+  const { dir, run, calls } = fixture(t);
   rmSync(join(dir, "project-config.yaml"));
   run("containers-up.ts");
-  assert.throws(
-    () => readFileSync(join(dir, "agent-config/config.yaml")),
-    /ENOENT/
-  );
+  const bootstrap = calls().find(({ args }) => args.includes("--rm"))!;
+  assert.ok(bootstrap.args.includes("agents"));
+  assert.ok(bootstrap.args.includes(`${dir}/agent-config:/home/agent/.config/term-llm:rw`));
+  assert.ok(bootstrap.args.includes("ANTHROPIC_API_KEY"));
+  assert.doesNotMatch(bootstrap.args.join(" "), /GH_TOKEN|github-secret|model-secret/);
+
 });
