@@ -21,6 +21,15 @@ function headers(): Record<string, string> {
   };
 }
 
+export class GitHubError extends Error {
+  status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.status = status;
+  }
+}
+
 export async function request(
   method: string,
   path: string,
@@ -34,7 +43,8 @@ export async function request(
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   if (!response.ok) {
-    throw new Error(
+    throw new GitHubError(
+      response.status,
       `GitHub said ${response.status} to ${method} ${path}: ${await response.text()}`
     );
   }

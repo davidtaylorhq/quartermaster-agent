@@ -2,7 +2,8 @@
 // no GitHub credential, so it leaves its reply and line comments here.
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { request } from "./github.ts";
+import { protect } from "./claims.ts";
+import { GitHubError, request } from "./github.ts";
 import { readOutput } from "./output.ts";
 
 // On the reply only: on every line comment it would be noise.
@@ -64,6 +65,7 @@ export async function publish(): Promise<void> {
     // One review, so the author gets one notification rather than one per point.
     console.error(`posting ${comments.length} line comment(s)`);
     try {
+      protect();
       await request("POST", `/repos/${repo}/pulls/${issue}/reviews`, {
         commit_id: readFileSync(join(temp, "relay.pushed"), "utf8").trim(),
         event: "COMMENT",
@@ -72,6 +74,13 @@ export async function publish(): Promise<void> {
       });
       return;
     } catch (error) {
+      if (
+        !(error instanceof GitHubError) ||
+        error.status < 400 ||
+        error.status >= 500
+      ) {
+        throw error;
+      }
       // GitHub takes a review whole or not at all, and one line outside the
       // diff loses the reply with it.
       console.error(
@@ -81,6 +90,7 @@ export async function publish(): Promise<void> {
   }
 
   if (!reply && comments.length === 0) {
+    protect();
     console.error("the agent finished with nothing to say");
     return;
   }
@@ -92,6 +102,7 @@ function asText(f: Finding): string {
 }
 
 async function comment(body: string): Promise<void> {
+  protect();
   await request("POST", `/repos/${repo}/issues/${issue}/comments`, {
     body: sign(body),
   });

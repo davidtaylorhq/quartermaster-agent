@@ -1,8 +1,8 @@
 // Take the mentions nobody has answered yet. Reacting is what claims one, so
 // two runs cannot answer the same comment.
-import { writeFileSync } from "node:fs";
+import { remember } from "./claims.ts";
 import { type Comment, listComments, request, TRUSTED } from "./github.ts";
-import { scratch } from "./scratch.ts";
+import { type Mention } from "./mentions.ts";
 
 const CLAIM = "eyes";
 const MACRO = process.env.MENTION!;
@@ -12,7 +12,6 @@ const WINDOW = Number(process.env.FOLLOWUP_WINDOW ?? "60");
 
 const repo = process.env.GITHUB_REPOSITORY!;
 const issue = process.env.ISSUE_NUMBER!;
-const out = scratch("mention.json");
 
 // GitHub answers 201 when it added the reaction and 200 when this account had
 // already added it, so one request both claims and checks.
@@ -37,18 +36,33 @@ async function react(
         content: CLAIM,
       }
     );
-    return response.status === 201;
+    if (response.status !== 201) {
+      return false;
+    }
+    const reaction = (await response.json()) as { id: number };
+    remember(id, reaction.id);
+    return true;
   } catch (error) {
     console.error(`could not claim ${id}: ${error}`);
     return false;
   }
 }
 
-async function outstanding(cutoff: string): Promise<Comment[]> {
+async function outstanding(
+  cutoff: string,
+  already?: string
+): Promise<Comment[]> {
   // The cutoff keeps a poll every few seconds from reading the whole thread.
   const all = await listComments(repo, issue, cutoff);
+  if (already && !all.some((c) => String(c.id) === already)) {
+    const response = await request(
+      "GET",
+      `/repos/${repo}/issues/comments/${already}`
+    );
+    all.push((await response.json()) as Comment);
+  }
   return all
-    .filter((c) => c.created_at >= cutoff)
+    .filter((c) => c.created_at >= cutoff || String(c.id) === already)
     .filter((c) => !c.user.login.endsWith("[bot]"))
     .filter((c) => TRUSTED.has(c.author_association))
     .filter((c) => (c.body ?? "").includes(MACRO))
@@ -58,9 +72,9 @@ async function outstanding(cutoff: string): Promise<Comment[]> {
 async function take(
   cutoff: string,
   already: string | undefined
-): Promise<boolean> {
+): Promise<Mention[]> {
   const taken = [];
-  for (const c of await outstanding(cutoff)) {
+  for (const c of await outstanding(cutoff, already)) {
     if (!(await react(c.id, already))) {
       continue;
     }
@@ -71,18 +85,17 @@ async function take(
       created_at: c.created_at,
     });
   }
-  writeFileSync(out, JSON.stringify(taken));
   if (taken.length === 0) {
-    return false;
+    return [];
   }
 
   console.error(
     `answering ${taken.length} comment(s): ${taken.map((c) => c.id).join(", ")}`
   );
-  return true;
+  return taken;
 }
 
-export async function claim(wait: boolean): Promise<boolean> {
+export async function claim(wait: boolean): Promise<Mention[]> {
   // A follow-up is looking for what came after, so it never inherits this.
   let already = wait ? undefined : process.env.CLAIMED;
   const cutoff = new Date(Date.now() - MAX_AGE_HOURS * 3600_000)
@@ -91,13 +104,14 @@ export async function claim(wait: boolean): Promise<boolean> {
   const deadline = Date.now() + (wait ? WINDOW * 1000 : 0);
 
   while (true) {
-    if (await take(cutoff, already)) {
-      return true;
+    const taken = await take(cutoff, already);
+    if (taken.length) {
+      return taken;
     }
     already = undefined;
     if (Date.now() >= deadline) {
       console.error("nothing outstanding");
-      return false;
+      return [];
     }
     await new Promise((r) => setTimeout(r, 3000));
   }

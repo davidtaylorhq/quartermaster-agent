@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -22,7 +22,7 @@ before(async () => {
       // GitHub adds the reaction once; after that it says it is already there.
       res
         .writeHead(first ? 201 : 200, { "content-type": "application/json" })
-        .end("{}");
+        .end(JSON.stringify({ id: id + 1000 }));
       return;
     }
     res
@@ -61,13 +61,6 @@ function comment(id: number) {
   };
 }
 
-const taken = () =>
-  (
-    JSON.parse(readFileSync(join(temp, "mention.json"), "utf8")) as {
-      id: number;
-    }[]
-  ).map((m) => m.id);
-
 beforeEach(() => {
   // The workflow's first step reacted to the triggering comment already.
   reacted = [TRIGGER];
@@ -75,9 +68,8 @@ beforeEach(() => {
 });
 
 test("the opening turn answers the comment the workflow already reacted to", async () => {
-  assert.equal(await claim(false), true);
   assert.deepEqual(
-    taken(),
+    (await claim(false)).map((m) => m.id),
     [TRIGGER],
     "the run's own reaction is not mistaken for someone else's"
   );
@@ -92,8 +84,8 @@ test("the opening turn answers the comment the workflow already reacted to", asy
 // believing it would answer the opening comment over and over.
 test("a follow-up does not answer the opening comment again", async () => {
   await claim(false);
-  assert.equal(await claim(true), false, "nothing new to say");
-  assert.equal(await claim(true), false);
+  assert.deepEqual(await claim(true), [], "nothing new to say");
+  assert.deepEqual(await claim(true), []);
   assert.ok(
     reacted.length > 1,
     "it asked GitHub, and GitHub said it was taken"
@@ -103,6 +95,26 @@ test("a follow-up does not answer the opening comment again", async () => {
 test("a follow-up answers a genuinely new mention", async () => {
   await claim(false);
   comments = [comment(TRIGGER), comment(200)];
-  assert.equal(await claim(true), true);
-  assert.deepEqual(taken(), [200]);
+  assert.deepEqual(
+    (await claim(true)).map((m) => m.id),
+    [200]
+  );
+});
+
+test("a newly acquired reaction is recorded for safe failure recovery", async () => {
+  comments = [comment(300)];
+  await claim(true);
+  const { readFileSync } = await import("node:fs");
+  assert.deepEqual(
+    JSON.parse(readFileSync(join(temp, "pending-claims/300"), "utf8")),
+    { comment: 300, reaction: 1300 }
+  );
+});
+
+test("the triggering comment remains eligible after the backlog age limit", async () => {
+  comments = [{ ...comment(TRIGGER), created_at: "2020-01-01T00:00:00Z" }];
+  assert.deepEqual(
+    (await claim(false)).map((m) => m.id),
+    [TRIGGER]
+  );
 });

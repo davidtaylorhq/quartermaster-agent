@@ -151,7 +151,7 @@ jobs:
         run: |
           # GitHub answers 201 when it added the reaction and 200 when it was
           # already there, which settles whether this run has anything to do.
-          status=$(curl -sS -o /dev/null -w '%{http_code}' -X POST \
+          status=$(curl -sS -o "$RUNNER_TEMP/reaction.json" -w '%{http_code}' -X POST \
             -H "authorization: Bearer $GH_TOKEN" \
             -H "accept: application/vnd.github+json" \
             -d '{"content":"eyes"}' \
@@ -160,7 +160,11 @@ jobs:
           # Everything before this was queueing and provisioning.
           echo "RUN_STARTED=$(date +%s%3N)" >> "$GITHUB_ENV"
           case "$status" in
-            201) echo "ours=true" >> "$GITHUB_OUTPUT" ;;
+            201)
+              mkdir -p "$RUNNER_TEMP/pending-claims"
+              jq --argjson comment "$COMMENT" '{comment: $comment, reaction: .id}' \
+                "$RUNNER_TEMP/reaction.json" > "$RUNNER_TEMP/pending-claims/$COMMENT"
+              echo "ours=true" >> "$GITHUB_OUTPUT" ;;
             200) echo "another run has this one" ;;
             *)   echo "::error::GitHub said $status to the reaction"; exit 1 ;;
           esac
@@ -323,3 +327,15 @@ jobs:
             && said="The run failed." \
             || said="The run stopped before it could answer."
           workflow-agent/bin/progress.ts stopped "$said [View the log]($RUN_URL)."
+
+      - name: Release unanswered claims
+        if: (failure() || cancelled()) && steps.seen.outputs.ours == 'true'
+        run: |
+          # Publication removes these records before sending anything to GitHub.
+          # Keep claims after an uncertain response to avoid duplicate replies.
+          for claim in "$RUNNER_TEMP"/pending-claims/*; do
+            [ -f "$claim" ] || continue
+            comment=$(jq -r .comment "$claim")
+            reaction=$(jq -r .reaction "$claim")
+            gh api --method DELETE "repos/$GITHUB_REPOSITORY/issues/comments/$comment/reactions/$reaction"
+          done

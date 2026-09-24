@@ -9,6 +9,7 @@ let api: Server;
 let temp: string;
 let sent: { path: string; body: string }[] = [];
 let reject: Set<string>;
+let rejectionStatus = 422;
 let publish: typeof import("../lib/post.ts").publish;
 
 before(async () => {
@@ -18,7 +19,9 @@ before(async () => {
     req.on("end", () => {
       sent.push({ path: req.url!, body });
       if ([...reject].some((r) => req.url!.includes(r))) {
-        res.writeHead(422).end('{"message":"line must be part of the diff"}');
+        res
+          .writeHead(rejectionStatus)
+          .end('{"message":"line must be part of the diff"}');
       } else {
         res
           .writeHead(201, { "content-type": "application/json" })
@@ -45,6 +48,7 @@ after(() => {
 beforeEach(() => {
   sent = [];
   reject = new Set();
+  rejectionStatus = 422;
   writeFileSync(
     join(temp, "output", "finish.json"),
     JSON.stringify({ reply: "the answer" })
@@ -101,4 +105,34 @@ test("a findings line of null is skipped, not thrown over", async () => {
   assert.equal(sent.length, 1);
   assert.match(sent[0]!.path, /\/pulls\/7\/reviews$/);
   assert.equal(JSON.parse(sent[0]!.body).comments.length, 1);
+});
+
+test("publication protects claims even when GitHub refuses the reply", async () => {
+  const { remember } = await import("../lib/claims.ts");
+  const { existsSync } = await import("node:fs");
+  remember(100, 101);
+  reject.add("/comments");
+  reject.add("/reviews");
+  await assert.rejects(publish());
+  assert.equal(existsSync(join(temp, "pending-claims")), false);
+});
+
+test("missing agent output leaves claims eligible for retry", async () => {
+  const { remember } = await import("../lib/claims.ts");
+  const { existsSync } = await import("node:fs");
+  remember(200, 201);
+  rmSync(join(temp, "output/finish.json"));
+  await assert.rejects(publish(), /nothing to post/);
+  assert.equal(existsSync(join(temp, "pending-claims/200")), true);
+});
+
+test("an uncertain review failure does not risk posting a duplicate reply", async () => {
+  writeFileSync(
+    join(temp, "output/findings.jsonl"),
+    '{"path":"a.rb","line":1,"body":"point"}\n'
+  );
+  reject.add("/reviews");
+  rejectionStatus = 503;
+  await assert.rejects(publish(), /503/);
+  assert.equal(sent.length, 1);
 });

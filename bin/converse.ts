@@ -6,7 +6,7 @@ import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { ask } from "../lib/agent.ts";
 import { claim } from "../lib/claim.ts";
-import { render, waiting } from "../lib/mentions.ts";
+import { render } from "../lib/mentions.ts";
 import { publish } from "../lib/post.ts";
 import { again, first, type Situation } from "../lib/prompt.ts";
 import { thread } from "../lib/thread.ts";
@@ -65,8 +65,7 @@ try {
   if (opening) {
     // One run is queued per issue, so a comment displaced from that queue has
     // nothing else looking for it. Take those too.
-    await claim(false);
-    const asked = waiting();
+    const asked = await claim(false);
     if (asked.length === 0) {
       console.error("nothing left to answer");
       progress("done");
@@ -77,14 +76,18 @@ try {
       await turn(first(where, history, render(asked)), false);
     }
   } else {
-    while (await claim(true)) {
+    while (true) {
+      const asked = await claim(true);
+      if (!asked.length) {
+        break;
+      }
       progress(
         "next",
         "Working",
         "Replying",
         `Waiting ${process.env.FOLLOWUP_WINDOW}s for further instructions`
       );
-      await turn(again(render(waiting())), true);
+      await turn(again(render(asked)), true);
     }
     progress("done");
   }

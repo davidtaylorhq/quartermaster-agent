@@ -192,6 +192,8 @@ Who may instruct it is settled by GitHub's author association, so a comment from
 
 Association is not permission. `MEMBER` means a member of the organisation and `COLLABORATOR` means someone invited to this repository, and neither says they can write to it. The agent pushes with its own token, so anyone listed here can reach the branch through it. Narrow `trusted-associations` to `OWNER` if that is not what you want.
 
+A failed or cancelled run releases its mention reactions only if publication has not begun. Rerunning it can then claim those mentions again. Once publication starts, claims stay in place even if GitHub times out: the reply may already exist. Check the thread before removing an eyes reaction to retry that case. The triggering comment is still eligible on a rerun after the normal backlog age limit.
+
 ## What this does not do yet
 
 - **The sandbox image floats.** Scripts, prompt and assets come from the commit the workflow was called at, but the image is always `sandbox:latest`, so pinning a caller to a tag does not pin what it runs in.
