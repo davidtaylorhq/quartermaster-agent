@@ -69,10 +69,16 @@ See the [workflow definition](.github/workflows/agent.yml) for all inputs and de
 
 ## Architecture
 
-- **Actions runner:** Holds GitHub credentials, controls access through an SSH gate, and publishes the agent's replies. Git fetches use a read-only forwarder; pushes go through a relay restricted to the permitted PR branch.
-- **Agent container:** Runs term-llm with model credentials, read-only configuration, and a writable output directory. It has no checkout mount or Docker socket.
-- **Workspace container:** Holds the checkout and exposes file/search tools over MCP/HTTP. The agent's `workspace_shell` wrapper runs commands here through SSH, with a ten-minute deadline.
-- **Development containers:** Start on demand for tests and other runtime-dependent commands. They share the checkout and are reached through the workspace's `dev` wrapper and SSH gate.
+- **Actions runner:** Holds all credentials and orchestrates containers. Runs brokers for Git operations and an SSH -> `docker exec` broker for running commands in containers.
+
+- **Agent container:** Runs term-llm with model credentials. Repository file tools and shell commands operate in the workspace container; workflow-specific tools run locally.
+
+- **Workspace container:** Holds the project code and exposes file/search tools over MCP/HTTP (`term-llm serve mcp`). The agent runs commands here via the SSH -> `docker exec` broker.
+
+- **Development containers:** Can be started on-demand by the agent. They all share the project code with the workspace container via a volume mount. Commands are run through the SSH -> `docker exec` broker.
+
 - **GitHub MCP container:** Provides read-only GitHub API tools to the agent over SSH/stdio.
 
-Workspace and development containers receive no model or GitHub credentials. Containers have outbound network access.
+Workspace and development containers receive no model or GitHub credentials.
+
+Containers have unrestricted outbound network access.
