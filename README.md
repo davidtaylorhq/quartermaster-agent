@@ -46,10 +46,9 @@ environments:
     cmd: sleep infinity
     user: node
     mount: /src
-    setup: npm ci
 ```
 
-The agent runs commands such as `dev node npm test`. Each environment starts on demand, shares the checkout, and runs `setup` once. Images need Bash and a command that stays running. Without this file, the agent still has file tools, Git, and a basic shell.
+The agent runs commands such as `dev node npm test`. Each environment starts on demand and shares the checkout. Use its `description` to explain any dependency or database preparation the agent may need. An optional `setup` script runs unconditionally on first use; reserve it for essential startup work. Images need Bash and a command that stays running. Without this file, the agent still has file tools, Git, and a basic shell.
 
 ## Configure
 

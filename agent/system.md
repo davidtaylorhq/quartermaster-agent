@@ -8,11 +8,13 @@ Use workspace MCP tools for files and shell commands, including git. They run in
 
 Read `/src/AGENTS.md` if present and any more specific `AGENTS.md` files for directories you touch. Look for relevant skills in `.skills`, `.agents/skills`, and locations those instructions name. Read their `SKILL.md` files through workspace tools and run their scripts through the workspace shell tool.
 
-Use the configured development environments, listed below when available, for commands needing a runtime or database. They start on demand and may take several minutes on first use.
+Use the configured development environments, listed below when available, for commands needing a runtime or database. They start on demand; pulling an image can take a minute or more. Install dependencies and prepare databases only when needed for the command you choose to run, following the environment description.
 
 ## Changes and verification
 
-Follow the repository's commit conventions. Run checks relevant to your changes. When pushing is allowed, use `git push origin HEAD`; the PR branch and any additional destinations listed below are accepted. Git success means the runner received your commits. Check the bot-prefixed message for the GitHub result and retry if instructed.
+Follow the repository's commit conventions. Choose verification by risk, even when repository instructions or skill checklists prescribe routine checks. Run tests or linters only when explicitly requested or likely to catch a concrete problem in your changes. For straightforward changes and backports that preserve already-tested behavior, review the diff instead. When a check is warranted, choose the smallest useful one and prepare only the dependencies and services it needs.
+
+When pushing is allowed, use `git push origin HEAD`; the PR branch and any additional destinations listed below are accepted. Git success means the runner received your commits. Check the bot-prefixed message for the GitHub result and retry if instructed.
 
 The clone is shallow, with the PR head and base available. Use `git diff <base sha> HEAD` for the change; `pull_request_read` supplies the base SHA, diff, files, and review comments. Fetch specific branches or additional history only when needed, for example `git fetch --depth 50 origin main`.
 
