@@ -8,6 +8,8 @@ import { after, before, beforeEach, test } from "node:test";
 const TRIGGER = 100;
 let api: Server;
 let comments: unknown[] = [];
+let reviewComments: ReturnType<typeof reviewComment>[] = [];
+let reviewReacted: number[] = [];
 let reacted: number[] = [];
 let claim: typeof import("../lib/claim.ts").claim;
 let temp: string;
@@ -17,8 +19,9 @@ before(async () => {
     const posted = req.url!.match(/\/comments\/(\d+)\/reactions$/);
     if (req.method === "POST" && posted) {
       const id = Number(posted[1]);
-      const first = !reacted.includes(id);
-      reacted.push(id);
+      const reactions = req.url!.includes("/pulls/") ? reviewReacted : reacted;
+      const first = !reactions.includes(id);
+      reactions.push(id);
       // GitHub adds the reaction once; after that it says it is already there.
       res
         .writeHead(first ? 201 : 200, { "content-type": "application/json" })
@@ -27,7 +30,9 @@ before(async () => {
     }
     res
       .writeHead(200, { "content-type": "application/json" })
-      .end(JSON.stringify(comments));
+      .end(
+        JSON.stringify(req.url!.includes("/pulls/") ? reviewComments : comments)
+      );
   });
   await new Promise<void>((done) => api.listen(0, "127.0.0.1", done));
 
@@ -61,10 +66,25 @@ function comment(id: number) {
   };
 }
 
+function reviewComment(id: number, parent?: number) {
+  return {
+    ...comment(id),
+    in_reply_to_id: parent,
+    path: "app/example.js",
+    line: 12,
+    diff_hunk: "@@ -11 +11 @@\n+broken()",
+    html_url: `https://github.com/o/p/pull/7#discussion_r${id}`,
+  };
+}
+
 beforeEach(() => {
   // The workflow's first step reacted to the triggering comment already.
   reacted = [TRIGGER];
   comments = [comment(TRIGGER)];
+  reviewComments = [];
+  reviewReacted = [];
+  process.env.IS_PULL_REQUEST = "no";
+  process.env.COMMENT_KIND = "issues";
 });
 
 test("the opening turn answers the comment the workflow already reacted to", async () => {
@@ -106,8 +126,8 @@ test("a newly acquired reaction is recorded for safe failure recovery", async ()
   await claim(true);
   const { readFileSync } = await import("node:fs");
   assert.deepEqual(
-    JSON.parse(readFileSync(join(temp, "pending-claims/300"), "utf8")),
-    { comment: 300, reaction: 1300 }
+    JSON.parse(readFileSync(join(temp, "pending-claims/issues-300"), "utf8")),
+    { comment: 300, reaction: 1300, kind: "issues" }
   );
 });
 
@@ -126,4 +146,63 @@ test("mentions from unauthorized users and bots remain ineligible", async () => 
     { ...comment(300), body: "no mention here" },
   ];
   assert.deepEqual(await claim(false), []);
+});
+
+test("an inline trigger includes its older finding and preserves claim namespaces", async () => {
+  process.env.IS_PULL_REQUEST = "yes";
+  process.env.COMMENT_KIND = "pulls";
+  reviewReacted = [TRIGGER];
+  reviewComments = [
+    {
+      ...reviewComment(90),
+      body: "The plugin report name is misspelled",
+      created_at: "2020-01-01T00:00:00Z",
+      author_association: "NONE",
+    },
+    { ...reviewComment(TRIGGER, 90), body: "@bot fix this one" },
+  ];
+  const asked = await claim(false);
+  assert.equal(asked.length, 1);
+  assert.equal(asked[0]!.replyTo, 90);
+  assert.match(asked[0]!.context!, /plugin report name is misspelled/);
+  assert.match(asked[0]!.context!, /app\/example.js, line 12/);
+  assert.match(asked[0]!.context!, /broken\(\)/);
+  assert.deepEqual(
+    await claim(true),
+    [],
+    "the same inline request is not answered twice"
+  );
+});
+
+test("a running PR session discovers inline follow-ups and rejects untrusted ones", async () => {
+  process.env.IS_PULL_REQUEST = "yes";
+  await claim(false);
+  reviewComments = [
+    { ...reviewComment(90), body: "A finding" },
+    reviewComment(200, 90),
+    { ...reviewComment(201, 90), author_association: "NONE" },
+    { ...reviewComment(202, 90), user: { login: "other[bot]" } },
+  ];
+  assert.deepEqual(
+    (await claim(true)).map((m) => m.id),
+    [200]
+  );
+  assert.deepEqual(reviewReacted, [200]);
+  const { readFileSync } = await import("node:fs");
+  assert.deepEqual(
+    JSON.parse(readFileSync(join(temp, "pending-claims/pulls-200"), "utf8")),
+    {
+      comment: 200,
+      reaction: 1200,
+      kind: "pulls",
+    }
+  );
+});
+
+test("a mention on a new inline thread uses that comment as the reply target", async () => {
+  process.env.IS_PULL_REQUEST = "yes";
+  reviewComments = [reviewComment(300)];
+  const asked = await claim(true);
+  assert.equal(asked[0]!.replyTo, 300);
+  assert.equal(asked[0]!.body, "@bot please");
 });

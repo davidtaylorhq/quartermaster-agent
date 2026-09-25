@@ -3,12 +3,12 @@ import { join } from "node:path";
 import { scratch } from "./scratch.ts";
 
 // Only claims that have never reached publication are safe to release.
-export function remember(comment: number, reaction: number) {
+export function remember(comment: number, reaction: number, kind = "issues") {
   const dir = scratch("pending-claims");
   mkdirSync(dir, { recursive: true });
   writeFileSync(
-    join(dir, String(comment)),
-    JSON.stringify({ comment, reaction })
+    join(dir, `${kind}-${comment}`),
+    JSON.stringify({ comment, reaction, kind })
   );
 }
 

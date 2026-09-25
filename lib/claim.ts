@@ -1,8 +1,15 @@
 // Take the mentions nobody has answered yet. Reacting is what claims one, so
 // two runs cannot answer the same comment.
 import { remember } from "./claims.ts";
-import { type Comment, listComments, request, TRUSTED } from "./github.ts";
+import {
+  type Comment,
+  listComments,
+  listReviewComments,
+  request,
+  TRUSTED,
+} from "./github.ts";
 import { type Mention } from "./mentions.ts";
+import { reviewThread } from "./review-thread.ts";
 
 const CLAIM = "eyes";
 const MACRO = process.env.MENTION!;
@@ -21,17 +28,23 @@ const issue = process.env.ISSUE_NUMBER!;
 // GitHub's 200 is the truth, and a run that kept the exemption would answer
 // that comment once per follow-up.
 async function react(
-  id: number,
+  comment: Comment,
   already: string | undefined
 ): Promise<boolean> {
-  if (already !== undefined && String(id) === already) {
+  const { id } = comment;
+  const kind = comment.kind ?? "issues";
+  if (
+    already !== undefined &&
+    String(id) === already &&
+    kind === (process.env.COMMENT_KIND ?? "issues")
+  ) {
     return true;
   }
 
   try {
     const response = await request(
       "POST",
-      `/repos/${repo}/issues/comments/${id}/reactions`,
+      `/repos/${repo}/${kind}/comments/${id}/reactions`,
       {
         content: CLAIM,
       }
@@ -40,7 +53,7 @@ async function react(
       return false;
     }
     const reaction = (await response.json()) as { id: number };
-    remember(id, reaction.id);
+    remember(id, reaction.id, kind);
     return true;
   } catch (error) {
     console.error(`could not claim ${id}: ${error}`);
@@ -54,15 +67,24 @@ async function outstanding(
 ): Promise<Comment[]> {
   // The cutoff keeps a poll every few seconds from reading the whole thread.
   const all = await listComments(repo, issue, cutoff);
-  if (already && !all.some((c) => String(c.id) === already)) {
+  if (process.env.IS_PULL_REQUEST === "yes") {
+    all.push(...(await listReviewComments(repo, issue, cutoff)));
+  }
+  const kind = process.env.COMMENT_KIND ?? "issues";
+  const isTrigger = (c: Comment) =>
+    String(c.id) === already && (c.kind ?? "issues") === kind;
+  if (already && !all.some(isTrigger)) {
     const response = await request(
       "GET",
-      `/repos/${repo}/issues/comments/${already}`
+      `/repos/${repo}/${kind}/comments/${already}`
     );
-    all.push((await response.json()) as Comment);
+    all.push({
+      ...((await response.json()) as Comment),
+      kind: kind as "issues" | "pulls",
+    });
   }
   return all
-    .filter((c) => c.created_at >= cutoff || String(c.id) === already)
+    .filter((c) => c.created_at >= cutoff || isTrigger(c))
     .filter((c) => !c.user.login.endsWith("[bot]"))
     .filter((c) => TRUSTED.has(c.author_association))
     .filter((c) => (c.body ?? "").includes(MACRO))
@@ -75,7 +97,7 @@ async function take(
 ): Promise<Mention[]> {
   const taken = [];
   for (const c of await outstanding(cutoff, already)) {
-    if (!(await react(c.id, already))) {
+    if (!(await react(c, already))) {
       continue;
     }
     taken.push({
@@ -83,6 +105,7 @@ async function take(
       author: c.user.login,
       body: c.body,
       created_at: c.created_at,
+      ...(c.kind === "pulls" ? await reviewThread(repo, issue, c) : {}),
     });
   }
   if (taken.length === 0) {

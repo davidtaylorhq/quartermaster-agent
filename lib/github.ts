@@ -11,6 +11,13 @@ export type Comment = {
   created_at: string;
   author_association: string;
   user: { login: string };
+  kind?: "issues" | "pulls";
+  in_reply_to_id?: number;
+  path?: string;
+  line?: number | null;
+  original_line?: number;
+  diff_hunk?: string;
+  html_url?: string;
 };
 
 function headers(): Record<string, string> {
@@ -80,4 +87,16 @@ function next(link: string | null): string | undefined {
 export function listComments(repo: string, issue: string, since?: string) {
   const query = since ? `?since=${encodeURIComponent(since)}` : "";
   return paginate<Comment>(`/repos/${repo}/issues/${issue}/comments${query}`);
+}
+
+export async function listReviewComments(
+  repo: string,
+  issue: string,
+  since?: string
+) {
+  const query = since ? `?since=${encodeURIComponent(since)}` : "";
+  const comments = await paginate<Comment>(
+    `/repos/${repo}/pulls/${issue}/comments${query}`
+  );
+  return comments.map((c) => ({ ...c, kind: "pulls" as const }));
 }

@@ -11,6 +11,8 @@ name: Agent
 on:
   issue_comment:
     types: [created]
+  pull_request_review_comment:
+    types: [created]
 
 jobs:
   respond:
@@ -30,7 +32,7 @@ jobs:
         ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}
 ```
 
-Post a top-level PR or issue comment such as `@mybot review this PR` or `@mybot fix this and run the tests`. The bot posts progress and a reply. Follow-ups within two minutes reuse the session. Replies inside inline review threads do not trigger the bot; link to the finding from a top-level comment instead.
+Mention the bot in a PR, issue, or inline review comment, for example `@mybot review this PR` or `@mybot fix this one`. Inline requests include the finding and thread context; a single request gets its reply in that thread. Follow-ups within two minutes reuse the session.
 
 By default, only `OWNER`, `MEMBER`, and `COLLABORATOR` comments can instruct it. These are GitHub associations, not write permissions; set `trusted-associations: OWNER` to restrict access to the owner. Use a fresh Linux runner with Docker; the default is `ubuntu-latest`.
 

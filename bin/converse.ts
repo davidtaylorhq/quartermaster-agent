@@ -38,13 +38,13 @@ const devLog = spawn(
   }
 );
 
-async function turn(prompt: string, resume: boolean) {
+async function turn(prompt: string, resume: boolean, replyTo?: number) {
   const status = ask(prompt, resume);
   progress("next");
 
   // Report the agent's failure rather than the empty publish it causes.
   try {
-    await publish();
+    await publish(replyTo);
   } catch (error) {
     if (status === 0) {
       throw error;
@@ -80,8 +80,16 @@ try {
     } else {
       // The sandbox is up. `turn` marks the rest.
       progress("next");
-      const history = await thread(new Set(asked.map((m) => String(m.id))));
-      await turn(first(where, history, render(asked)), false);
+      const history = await thread(
+        new Set(
+          asked.filter((m) => m.replyTo === undefined).map((m) => String(m.id))
+        )
+      );
+      await turn(
+        first(where, history, render(asked)),
+        false,
+        asked.length === 1 ? asked[0]!.replyTo : undefined
+      );
     }
   } else {
     while (true) {
@@ -95,7 +103,11 @@ try {
         "Replying",
         `Waiting ${process.env.FOLLOWUP_WINDOW}s for further instructions`
       );
-      await turn(again(render(asked)), true);
+      await turn(
+        again(render(asked)),
+        true,
+        asked.length === 1 ? asked[0]!.replyTo : undefined
+      );
     }
     progress("done");
   }

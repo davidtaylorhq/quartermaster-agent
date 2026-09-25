@@ -107,7 +107,7 @@ jobs:
       # Queued rather than cancelled. Cancelling would kill a run waiting for
       # a follow-up with the very run that follow-up started, and a queued run
       # always finds the reaction the last one left.
-      group: ${{ inputs.mention }}-${{ github.event.issue.number }}
+      group: ${{ inputs.mention }}-${{ github.event.issue.number || github.event.pull_request.number }}
       cancel-in-progress: false
     permissions:
       contents: write  # the relay forwards the agent's commits; its hooks gate the branch
@@ -136,9 +136,10 @@ jobs:
       GITHUB_TOOLSETS: pull_requests,issues,actions
       HAS_APP: ${{ secrets.app-id != '' }}
       CLAIMED: ${{ github.event.comment.id }}
+      COMMENT_KIND: ${{ github.event_name == 'pull_request_review_comment' && 'pulls' || 'issues' }}
       GITHUB_REPOSITORY: ${{ github.repository }}
-      ISSUE_NUMBER: ${{ github.event.issue.number }}
-      IS_PULL_REQUEST: ${{ github.event.issue.pull_request && 'yes' || 'no' }}
+      ISSUE_NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
+      IS_PULL_REQUEST: ${{ (github.event.issue.pull_request || github.event.pull_request) && 'yes' || 'no' }}
       RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
     steps:
@@ -190,13 +191,13 @@ jobs:
             -H "authorization: Bearer $GH_TOKEN" \
             -H "accept: application/vnd.github+json" \
             -d '{"content":"eyes"}' \
-            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/issues/comments/$COMMENT/reactions")
+            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/$COMMENT_KIND/comments/$COMMENT/reactions")
 
           case "$status" in
             201)
               mkdir -p "$RUNNER_TEMP/pending-claims"
-              jq --argjson comment "$COMMENT" '{comment: $comment, reaction: .id}' \
-                "$RUNNER_TEMP/reaction.json" > "$RUNNER_TEMP/pending-claims/$COMMENT"
+              jq --argjson comment "$COMMENT" --arg kind "$COMMENT_KIND" '{comment: $comment, reaction: .id, kind: $kind}' \
+                "$RUNNER_TEMP/reaction.json" > "$RUNNER_TEMP/pending-claims/$COMMENT_KIND-$COMMENT"
               echo "ours=true" >> "$GITHUB_OUTPUT" ;;
             200) echo "another run has this one" ;;
             *)   echo "::error::GitHub said $status to the reaction"; exit 1 ;;
@@ -375,5 +376,6 @@ jobs:
             [ -f "$claim" ] || continue
             comment=$(jq -r .comment "$claim")
             reaction=$(jq -r .reaction "$claim")
-            gh api --method DELETE "repos/$GITHUB_REPOSITORY/issues/comments/$comment/reactions/$reaction"
+            kind=$(jq -r '.kind // "issues"' "$claim")
+            gh api --method DELETE "repos/$GITHUB_REPOSITORY/$kind/comments/$comment/reactions/$reaction"
           done

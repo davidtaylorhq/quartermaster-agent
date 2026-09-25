@@ -55,6 +55,14 @@ beforeEach(() => {
   );
   writeFileSync(join(temp, "relay.pushed"), "abc123\n");
   process.env.IS_PULL_REQUEST = "yes";
+  rmSync(join(temp, "output/findings.jsonl"), { force: true });
+});
+
+test("an inline request gets its answer in the original review thread", async () => {
+  await publish(123);
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0]!.path, "/repos/o/p/pulls/7/comments/123/replies");
+  assert.match(JSON.parse(sent[0]!.body).body, /the answer/);
 });
 
 test("a refused review still delivers the answer", async () => {
@@ -123,7 +131,7 @@ test("missing agent output leaves claims eligible for retry", async () => {
   remember(200, 201);
   rmSync(join(temp, "output/finish.json"));
   await assert.rejects(publish(), /nothing to post/);
-  assert.equal(existsSync(join(temp, "pending-claims/200")), true);
+  assert.equal(existsSync(join(temp, "pending-claims/issues-200")), true);
 });
 
 test("an uncertain review failure does not risk posting a duplicate reply", async () => {

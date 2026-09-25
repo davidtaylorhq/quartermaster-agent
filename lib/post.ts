@@ -49,7 +49,7 @@ function readFindings(contents: string): Finding[] {
   return out;
 }
 
-export async function publish(): Promise<void> {
+export async function publish(replyTo?: number): Promise<void> {
   const finish = readOutput("finish.json");
   if (finish === undefined) {
     console.error("the agent never finished; nothing to post");
@@ -93,16 +93,23 @@ export async function publish(): Promise<void> {
     console.error("the agent finished with nothing to say");
     return;
   }
-  await comment([reply, ...comments.map(asText)].filter(Boolean).join("\n\n"));
+  await comment(
+    [reply, ...comments.map(asText)].filter(Boolean).join("\n\n"),
+    replyTo
+  );
 }
 
 function asText(f: Finding): string {
   return `**\`${f.path}\`** line ${f.line}\n\n${f.body}`;
 }
 
-async function comment(body: string): Promise<void> {
+async function comment(body: string, replyTo?: number): Promise<void> {
   protect();
-  await request("POST", `/repos/${repo}/issues/${issue}/comments`, {
+  const path =
+    replyTo === undefined
+      ? `/repos/${repo}/issues/${issue}/comments`
+      : `/repos/${repo}/pulls/${issue}/comments/${replyTo}/replies`;
+  await request("POST", path, {
     body: sign(body),
   });
 }
