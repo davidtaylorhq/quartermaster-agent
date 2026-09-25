@@ -7,11 +7,6 @@
 . "$HOME/.workflow-agent/env"
 
 case "$SSH_ORIGINAL_COMMAND" in
-  workspace-shell)
-    exec docker exec -i -u agent -w /src -e HOME=/home/agent \
-      workflow-agent-sandbox \
-      timeout --kill-after=5s 600 bash -s
-    ;;
   open-pull-request)
     exec node --experimental-strip-types --no-warnings=ExperimentalWarning "$AGENT_SCRIPTS/open-pr.ts"
     ;;

@@ -83,11 +83,11 @@ See the [workflow definition](.github/workflows/agent.yml) for all inputs and de
 
 ## Architecture
 
-- **Actions runner:** Holds all credentials and orchestrates containers. Runs brokers for Git operations and an SSH -> `docker exec` broker for running commands in containers.
+- **Actions runner:** Holds all credentials and orchestrates containers. Runs brokers for Git operations and PR creation, and an SSH -> `docker exec` broker for development-container commands.
 
 - **Agent container:** Runs term-llm with model credentials. Repository file tools and shell commands operate in the workspace container; workflow-specific tools run locally.
 
-- **Workspace container:** Holds the project code and exposes file/search tools over MCP/HTTP (`term-llm serve mcp`). The agent runs commands here via the SSH -> `docker exec` broker.
+- **Workspace container:** Holds the project code and exposes file, search, and shell tools over MCP/HTTP (`term-llm serve mcp`).
 
 - **Development containers:** Can be started on-demand by the agent. They all share the project code with the workspace container via a volume mount. Commands are run through the SSH -> `docker exec` broker.
 

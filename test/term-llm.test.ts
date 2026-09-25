@@ -44,7 +44,7 @@ test(
     cpSync(join(root, "agent/skills"), join(config, "skills"), {
       recursive: true,
     });
-    // Emulate only SSH transport locally; execute the production sandbox runner.
+    // PR creation uses SSH; workspace tools use the real MCP server.
     const stubs = join(dir, "stubs");
     mkdirSync(stubs);
     writeFileSync(
@@ -56,8 +56,7 @@ if [ "$3" = open-pull-request ]; then
   echo '{"url":"https://github.com/test/repo/pull/2","created":true}'
   exit 0
 fi
-cd "${workspace}"
-exec bash -s
+exit 1
 `,
       { mode: 0o755 }
     );
@@ -78,7 +77,7 @@ exec bash -s
         "serve",
         "mcp",
         "--tools",
-        "read_file,write_file,edit_file,glob,grep",
+        "read_file,write_file,edit_file,glob,grep,shell",
         "--host",
         "127.0.0.1",
         "--port",
@@ -89,7 +88,7 @@ exec bash -s
       ],
       {
         cwd: workspace,
-        env: { ...baseEnv, HOME: serverHome },
+        env: { ...baseEnv, HOME: serverHome, SHELL: "/bin/bash" },
         stdio: ["ignore", "pipe", "pipe"],
       }
     );
@@ -141,9 +140,10 @@ exec bash -s
       ["glob", { pattern: "*.txt" }],
       ["grep", { pattern: "goodbye", path: "." }],
       [
-        "workspace_shell",
+        "shell",
         {
-          command: 'test -z "$ANTHROPIC_API_KEY" && cat example.txt',
+          command:
+            'test -n "$BASH_VERSION" && test -z "$ANTHROPIC_API_KEY$GH_TOKEN" && cat example.txt',
         },
       ],
       ["activate_skill", { name: "review" }],
@@ -188,6 +188,7 @@ exec bash -s
           "glob",
           "grep",
           "read_file",
+          "shell",
           "write_file",
         ];
         assert.deepEqual(
@@ -198,7 +199,7 @@ exec bash -s
           workspaceTools.every((name) => !names.includes(name)),
           names.join(", ")
         );
-        assert.ok(names.includes("workspace_shell"));
+        assert.ok(!names.includes("workspace_shell"));
         assert.ok(names.includes("open_pull_request"));
         assert.ok(!names.includes("shell"));
         const action = actions[next++];
@@ -206,6 +207,7 @@ exec bash -s
         const [tool, input] = action;
         const name = [
           "read_file",
+          "shell",
           "write_file",
           "edit_file",
           "glob",

@@ -1,5 +1,0 @@
-#!/bin/bash
-set -euo pipefail
-
-command=${1:?command required}
-printf '%s\n' "$command" | ssh -T workflow-gate workspace-shell

@@ -64,18 +64,31 @@ docker exec -u agent workflow-agent-sandbox sh -ec '
 '
 [ "$(cat "$WORKTREE/smoke")" = smoke ]
 
-# Exercise the actual tool script over SSH, beyond the HTTP header deadline.
+# Exercise the real MCP client and shell beyond the old HTTP header deadline.
 shell_tool() {
+  local args
+  args=$(jq -cn --arg command "$1" --argjson timeout "${2:-140}" \
+    '{command: $command, timeout_seconds: $timeout}')
   docker exec -i -u agent -e HOME=/home/agent -e ANTHROPIC_API_KEY=smoke-model-secret \
-    workflow-agent-client /home/agent/.config/term-llm/agents/workflow-agent/scripts/workspace-shell "$@"
+    workflow-agent-client /home/agent/.local/bin/term-llm \
+    mcp run workspace shell "$args" --timeout 150s
 }
-result=$(shell_tool 'test -z "$ANTHROPIC_API_KEY$GH_TOKEN" && test "$(id -u)" = 1000 && sleep 125 && printf ssh-shell-ok')
-[ "$result" = ssh-shell-ok ]
+result=$(shell_tool 'test -n "$BASH_VERSION" && test -z "$ANTHROPIC_API_KEY$GH_TOKEN" && test "$(id -u)" = 1000 && test "$PWD" = /src && sleep 125 && printf mcp-shell-ok')
+[[ "$result" == *mcp-shell-ok* ]]
+[[ "$result" == *'exit_code: 0'* ]]
 set +e
-shell_tool 'timeout 1 sleep 30'
+result=$(shell_tool 'printf expected-error >&2; exit 7' 10 2>&1)
 status=$?
 set -e
-[ "$status" = 124 ]
+[ "$status" = 1 ]
+[[ "$result" == *expected-error* ]]
+[[ "$result" == *'exit_code: 7'* ]]
+set +e
+result=$(shell_tool 'sleep 30' 1 2>&1)
+status=$?
+set -e
+[ "$status" = 1 ]
+[[ "$result" == *'Command timed out'* ]]
 
 # The private MCP service requires its bearer token, and is the main process.
 code=$(docker exec workflow-agent-client curl -s -o /dev/null -w '%{http_code}' \

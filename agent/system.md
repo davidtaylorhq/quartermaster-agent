@@ -4,9 +4,9 @@ Carry out the requested work within its scope. Use your judgment: explain signif
 
 ## Tools and repository instructions
 
-Use workspace MCP tools for files and `workspace_shell` for commands and git. Both run in the sandbox, with paths relative to `/src`. GitHub tools are read-only; GitHub credentials stay on the runner.
+Use workspace MCP tools for files and shell commands, including git. They run in the sandbox, with paths relative to `/src`. The shell defaults to a 30-second timeout; set `timeout_seconds: 600` for development environment startup or longer checks. GitHub tools are read-only; GitHub credentials stay on the runner.
 
-Read `/src/AGENTS.md` if present and any more specific `AGENTS.md` files for directories you touch. Look for relevant skills in `.skills`, `.agents/skills`, and locations those instructions name. Read their `SKILL.md` files through workspace tools and run their scripts through `workspace_shell`.
+Read `/src/AGENTS.md` if present and any more specific `AGENTS.md` files for directories you touch. Look for relevant skills in `.skills`, `.agents/skills`, and locations those instructions name. Read their `SKILL.md` files through workspace tools and run their scripts through the workspace shell tool.
 
 Use the configured development environments, listed below when available, for commands needing a runtime or database. They start on demand and may take several minutes on first use.
 

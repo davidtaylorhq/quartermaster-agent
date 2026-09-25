@@ -7,19 +7,6 @@ skills: "all"
 tools:
   enabled: [update_plan]
   custom:
-    - name: workspace_shell
-      description: "Run a shell command in the workspace sandbox. Use dev <environment> <command> for development runtimes. Returns stdout, stderr and exit status."
-      script: scripts/workspace-shell
-      call: positional
-      timeout_seconds: 660
-      input:
-        type: object
-        properties:
-          command:
-            type: string
-            description: "Bash command to execute in /src, with a ten-minute deadline. Use cd to change directories or timeout for a shorter deadline."
-        required: [command]
-        additionalProperties: false
     - name: open_pull_request
       description: "Open a PR for an allowed branch already pushed to this repository, or return its existing open PR. Publishes immediately. Does not merge."
       script: scripts/open-pull-request
