@@ -59,6 +59,11 @@ before(() => {
     'import { readFileSync } from "node:fs"; console.log(readFileSync(0, "utf8"));'
   );
 
+  writeFileSync(
+    join(stubs, "upload-image.ts"),
+    'import { readFileSync } from "node:fs"; console.log(readFileSync(0, "utf8"));'
+  );
+
   // Standing in for docker, so a test can see what the gate would have run.
   writeFileSync(join(stubs, "docker"), '#!/bin/sh\necho "docker $*"\n');
   chmodSync(join(stubs, "docker"), 0o755);
@@ -156,4 +161,12 @@ test("PR creation forwards JSON over stdin and refuses extra command arguments",
   assert.equal(out.status, 0, out.stderr);
   assert.equal(out.stdout.trim(), request);
   assert.equal(ask("open-pull-request other/repo", request).status, 1);
+});
+
+test("image uploads forward JSON and refuse extra command arguments", () => {
+  const input = JSON.stringify({ path: "tmp/screenshot.png" });
+  const out = ask("upload-image", input);
+  assert.equal(out.status, 0, out.stderr);
+  assert.equal(out.stdout.trim(), input);
+  assert.equal(ask("upload-image other/repo", input).status, 1);
 });

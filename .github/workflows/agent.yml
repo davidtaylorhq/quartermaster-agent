@@ -42,6 +42,10 @@ on:
         description: "Path to additional system-prompt Markdown, read from this repository's default branch."
         type: string
         default: ""
+      attachment-repository:
+        description: "Optional owner/repo for PNG uploads. Public images should use a public repository."
+        type: string
+        default: ""
       environments:
         description: >-
           Path in this repository to the development environments the agent may
@@ -80,6 +84,9 @@ on:
           comments carry the app's name, and its pushes start CI, which a push
           from `GITHUB_TOKEN` does not. Needs write on issues, pull requests
           and contents, plus read on actions, checks and statuses.
+        required: false
+      attachment-upload-token:
+        description: "Fine-grained PAT with Contents write on attachment-repository; used only by the runner for image uploads."
         required: false
       app-private-key:
         required: false
@@ -348,6 +355,9 @@ jobs:
         wait: [pull, worktree]
       - name: Stand up the host services
         if: steps.seen.outputs.ours == 'true'
+        env:
+          ATTACHMENT_REPOSITORY: ${{ inputs.attachment-repository }}
+          ATTACHMENT_UPLOAD_TOKEN: ${{ secrets.attachment-upload-token }}
         run: workflow-agent/bin/host-setup
       - name: Run the agent
         if: steps.seen.outputs.ours == 'true'

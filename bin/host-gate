@@ -7,6 +7,9 @@
 . "$HOME/.workflow-agent/env"
 
 case "$SSH_ORIGINAL_COMMAND" in
+  upload-image)
+    exec node --experimental-strip-types --no-warnings=ExperimentalWarning "$AGENT_SCRIPTS/upload-image.ts"
+    ;;
   open-pull-request)
     exec node --experimental-strip-types --no-warnings=ExperimentalWarning "$AGENT_SCRIPTS/open-pr.ts"
     ;;

@@ -64,6 +64,7 @@ Pass these under the caller's `with:`:
 | `allowed-branches` | Additional push destinations: one full branch-name JavaScript regex per line |
 | `task` | Task authorized by a calling workflow, executed once without mention checks |
 | `instructions` | Optional Markdown file appended to the system prompt, read from your default branch |
+| `attachment-repository` | Optional `owner/repo` for image uploads |
 | `environments` | Alternative path to the development environment file |
 | `trusted-associations` | Who may instruct the bot |
 | `agent-timeout` | Agent time limit; default `10m` |
@@ -80,11 +81,13 @@ To use a GitHub App identity and let agent pushes trigger CI, also pass `app-id`
 
 The GitHub tools can read CI results and Actions logs. Existing callers must include the read permissions shown above; existing app installations must approve the added permissions.
 
+For screenshots, set `attachment-repository: owner/assets-repo` and pass `attachment-upload-token: ${{ secrets.ATTACHMENT_UPLOAD_TOKEN }}` under `secrets:`. Use a fine-grained PAT with Contents read/write on that repository only. The `upload_image` tool accepts workspace PNGs up to 10 MiB and returns URLs for the bot to embed in replies. The PAT stays on the runner; comments retain the bot identity. Use a public assets repository for public screenshots. GitHub does not document attachment retention guarantees.
+
 See the [workflow definition](.github/workflows/agent.yml) for all inputs and defaults.
 
 ## Architecture
 
-- **Actions runner:** Holds all credentials and orchestrates containers. Runs brokers for Git operations and PR creation, and an SSH -> `docker exec` broker for development-container commands.
+- **Actions runner:** Holds all credentials and orchestrates containers. Runs brokers for Git operations, PR creation, and image uploads, and an SSH -> `docker exec` broker for development-container commands.
 
 - **Agent container:** Runs term-llm with model credentials. Repository file tools and shell commands operate in the workspace container; workflow-specific tools run locally.
 

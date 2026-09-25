@@ -53,6 +53,11 @@ if [ "$3" = open-pull-request ]; then
   echo '{"url":"https://github.com/test/repo/pull/2","created":true}'
   exit 0
 fi
+if [ "$3" = upload-image ]; then
+  cat > "${outputDir}/image-request.json"
+  echo '{"url":"https://github.com/user-attachments/assets/1234-abcd"}'
+  exit 0
+fi
 exit 1
 `,
       { mode: 0o755 }
@@ -156,6 +161,7 @@ exit 1
           body: "Details",
         },
       ],
+      ["upload_image", { path: "/src/tmp/screenshot.png" }],
       ["finish", { reply: "Finished through MCP" }],
       ["read_file", { path: "example.txt" }],
       ["finish", { reply: "Follow-up through MCP" }],
@@ -198,6 +204,7 @@ exit 1
         assert.ok(!names.includes("workspace_shell"));
         assert.ok(names.includes("open_pull_request"));
         assert.ok(names.includes("line_comment"));
+        assert.ok(names.includes("upload_image"));
         assert.ok(!names.includes("shell"));
         const action = actions[next++];
         assert.ok(action, "unexpected model request");
@@ -332,6 +339,10 @@ exit 1
         title: "Backport",
         body: "Details",
       }
+    );
+    assert.deepEqual(
+      JSON.parse(readFileSync(join(outputDir, "image-request.json"), "utf8")),
+      { path: "/src/tmp/screenshot.png" }
     );
     assert.deepEqual(failures, []);
     assert.equal(next, actions.length);

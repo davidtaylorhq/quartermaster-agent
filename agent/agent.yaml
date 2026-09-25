@@ -7,6 +7,19 @@ skills: "all"
 tools:
   enabled: [update_plan]
   custom:
+    - name: upload_image
+      description: "Upload a workspace PNG to the configured GitHub attachments repository. Returns a URL to embed in your final reply or line comment. Uploads immediately; requires caller configuration."
+      script: scripts/upload-image
+      timeout_seconds: 120
+      call: json
+      input:
+        type: object
+        properties:
+          path:
+            type: string
+            description: "PNG path in the workspace, absolute under /src or relative to /src. Maximum 10 MiB."
+        required: [path]
+        additionalProperties: false
     - name: line_comment
       description: "Attach a finding to a changed line of the PR. Collected and published with the final reply when you finish."
       script: scripts/line-comment.sh

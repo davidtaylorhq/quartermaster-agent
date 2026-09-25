@@ -7,6 +7,8 @@ export SANDBOX_IMAGE="${SANDBOX_IMAGE:-workflow-agent-smoke}"
 export RUNNER_TEMP="$(mktemp -d)"
 export GITHUB_ENV="$RUNNER_TEMP/github-env"
 export GH_TOKEN=smoke-github-secret
+export ATTACHMENT_UPLOAD_TOKEN=smoke-upload-secret
+export ATTACHMENT_REPOSITORY=example/assets
 export DEFAULT_BRANCH=main
 export HEAD_REF=topic GITHUB_REPOSITORY=example/repo BOT_NAME=smoke
 export ASSET_REPO=example/workflow-agent ASSET_REF=main
@@ -50,7 +52,7 @@ set -e
 # Both filesystems and uid ownership are real mounts, including on uid 1001 runners.
 docker exec -u agent workflow-agent-client sh -ec '
   test ! -e /src/.git
-  test -z "${GH_TOKEN:-}${ANTHROPIC_API_KEY:-}"
+  test -z "${GH_TOKEN:-}${ANTHROPIC_API_KEY:-}${ATTACHMENT_UPLOAD_TOKEN:-}"
   test -r /home/agent/.ssh/gate
   if touch /home/agent/.config/term-llm/forbidden 2>/dev/null; then exit 1; fi
   printf "{\"reply\":\"smoke\"}" > /output/finish.json
@@ -58,11 +60,25 @@ docker exec -u agent workflow-agent-client sh -ec '
 [ "$(cat "$RUNNER_TEMP/output/finish.json")" = '{"reply":"smoke"}' ]
 rm "$RUNNER_TEMP/output/finish.json"
 docker exec -u agent workflow-agent-sandbox sh -ec '
-  test -z "${GH_TOKEN:-}${ANTHROPIC_API_KEY:-}"
+  test -z "${GH_TOKEN:-}${ANTHROPIC_API_KEY:-}${ATTACHMENT_UPLOAD_TOKEN:-}"
   test ! -e /output
   echo smoke > /src/smoke
 '
 [ "$(cat "$WORKTREE/smoke")" = smoke ]
+
+# Image reads must stay inside the workspace even when the path is a symlink.
+node --experimental-strip-types --input-type=module <<'JS'
+import assert from "node:assert/strict";
+import { writeFileSync, symlinkSync } from "node:fs";
+import { readImage } from "./lib/upload-image.ts";
+const bytes = Buffer.from("89504e470d0a1a0a00000000", "hex");
+writeFileSync(`${process.env.WORKTREE}/screenshot.png`, bytes);
+assert.deepEqual(readImage("screenshot.png").bytes, bytes);
+const secret = `${process.env.RUNNER_TEMP}/runner-only.png`;
+writeFileSync(secret, bytes);
+symlinkSync(secret, `${process.env.WORKTREE}/escape.png`);
+assert.throws(() => readImage("escape.png"));
+JS
 
 # Exercise the real MCP client and shell beyond the old HTTP header deadline.
 shell_tool() {

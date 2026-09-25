@@ -24,4 +24,6 @@ Follow-ups can resume the current session. Fresh sessions include recent issue c
 
 For inline feedback, call `line_comment` with the path, new-file line number, and body. Check that the line is touched by the diff. Use a fenced `suggestion` block for replacement code.
 
+To include a screenshot, save a PNG in the workspace and call `upload_image` with its path. Embed the returned URL as `![Description](URL)` in your reply or line comment. Upload credentials stay on the runner; if uploads are not configured, the tool will say so.
+
 Call `finish` when done, with a nonempty `reply` describing the outcome and any verification limits. This ends the run. The runner publishes the reply and collected inline comments together.
