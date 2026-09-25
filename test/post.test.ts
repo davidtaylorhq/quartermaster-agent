@@ -80,6 +80,7 @@ test("a refused review still delivers the answer", async () => {
   const fallback = JSON.parse(sent[1]!.body).body;
   assert.match(fallback, /the answer/, "the reply survives");
   assert.match(fallback, /a\.rb/, "so does the point it could not anchor");
+  assert.equal(fallback.match(/help improve with/g)?.length, 1);
 });
 
 test("line comments on an issue go in the reply, not to the reviews endpoint", async () => {
@@ -113,6 +114,10 @@ test("a findings line of null is skipped, not thrown over", async () => {
   assert.equal(sent.length, 1);
   assert.match(sent[0]!.path, /\/pulls\/7\/reviews$/);
   assert.equal(JSON.parse(sent[0]!.body).comments.length, 1);
+  assert.match(
+    JSON.parse(sent[0]!.body).comments[0].body,
+    /a point\n\n<sub>:robot: AI generated response - help improve with 👍 or 👎<\/sub>$/
+  );
 });
 
 test("publication protects claims even when GitHub refuses the reply", async () => {

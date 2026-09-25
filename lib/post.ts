@@ -6,7 +6,6 @@ import { protect } from "./claims.ts";
 import { GitHubError, request } from "./github.ts";
 import { readOutput } from "./output.ts";
 
-// On the reply only: on every line comment it would be noise.
 const FOOTER =
   "<sub>:robot: AI generated response - help improve with \u{1F44D} or \u{1F44E}</sub>";
 
@@ -70,7 +69,10 @@ export async function publish(replyTo?: number): Promise<void> {
         commit_id: readFileSync(join(temp, "relay.pushed"), "utf8").trim(),
         event: "COMMENT",
         body: sign(reply),
-        comments,
+        comments: comments.map((finding) => ({
+          ...finding,
+          body: sign(finding.body),
+        })),
       });
       return;
     } catch (error) {
