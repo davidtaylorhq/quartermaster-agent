@@ -29,6 +29,8 @@ bridge=$(ip -4 -o addr show docker0 2>/dev/null | awk '{print $4}' | cut -d/ -f1
 step "building the relay on $bridge"
 # ---------------------------------------------------------------- git relay
 git --git-dir="$RELAY" config core.bare true
+# Backports may introduce shallow boundaries from separately fetched branches.
+git --git-dir="$RELAY" config receive.shallowUpdate true
 git --git-dir="$RELAY" symbolic-ref HEAD "refs/heads/$HEAD_REF"
 # What the push leases against. The relay is a copy of the work tree, so this
 # is the commit the agent started from.

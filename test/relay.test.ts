@@ -48,6 +48,7 @@ function relay(
   git(work, "commit", "-qm", "Initial");
   git(work, "push", "-q", upstream, "HEAD:refs/heads/topic");
   git(dir, "clone", "-q", "--bare", work, relayRepo);
+  git(relayRepo, "config", "receive.shallowUpdate", "true");
   const initial = git(work, "rev-parse", "HEAD");
   writeFileSync(pushed, initial);
   // Keep the production GitHub URL and exercise real pushes against a local remote.
@@ -248,4 +249,23 @@ test("existing extra branches lease against their startup snapshot", (t) => {
 
 test("invalid branch patterns stop setup", (t) => {
   assert.throws(() => relay(t, true, "["), /Invalid regular expression/);
+});
+
+test("a backport fetched shallowly can pass through the relay", (t) => {
+  const r = relay(t, true, "backport/.*");
+  writeFileSync(join(r.relayRepo, "shallow"), `${r.initial}\n`);
+  r.git(r.work, "checkout", "-qb", "release", r.initial);
+  r.git(r.work, "commit", "--allow-empty", "-qm", "Release");
+  const release = r.git(r.work, "rev-parse", "HEAD");
+  r.git(r.work, "push", "-q", r.upstream, "HEAD:refs/heads/release");
+  writeFileSync(join(r.work, ".git/shallow"), `${release}\n`);
+  r.git(r.work, "commit", "--allow-empty", "-qm", "Backport");
+
+  const result = r.push("backport/new");
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stderr, /testbot: pushed/);
+  assert.equal(
+    r.git(r.upstream, "rev-parse", "backport/new"),
+    r.git(r.work, "rev-parse", "HEAD")
+  );
 });
