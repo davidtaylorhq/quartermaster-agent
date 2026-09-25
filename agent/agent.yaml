@@ -8,7 +8,7 @@ tools:
   enabled: [update_plan]
   custom:
     - name: upload_image
-      description: "Upload a workspace PNG to the configured GitHub attachments repository. Returns a URL to embed in your final reply or line comment. Uploads immediately; requires caller configuration."
+      description: "Upload a workspace PNG image or WebM video to the configured GitHub attachments repository. Returns a URL for your final reply or line comment. Embed PNGs with Markdown image syntax; put video URLs on their own line. Uploads immediately; requires caller configuration."
       script: scripts/upload-image
       timeout_seconds: 120
       call: json
@@ -17,7 +17,7 @@ tools:
         properties:
           path:
             type: string
-            description: "PNG path in the workspace, absolute under /src or relative to /src. Maximum 10 MiB."
+            description: "PNG or WebM path in the workspace, absolute under /src or relative to /src. Maximum 10 MiB."
         required: [path]
         additionalProperties: false
     - name: line_comment

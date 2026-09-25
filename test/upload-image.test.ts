@@ -99,10 +99,10 @@ test("rejects invalid paths, non-images, and oversized files", () => {
     "test.jpg",
     "test\0.png",
   ]) {
-    assert.throws(() => readImage(path), /PNG in \/src/);
+    assert.throws(() => readImage(path), /PNG or WebM in \/src/);
   }
   writeFileSync(join(dir, "image.png"), "not an image");
-  assert.throws(() => readImage("tmp/test.png"), /not a PNG/);
+  assert.throws(() => readImage("tmp/test.png"), /do not match/);
   writeFileSync(join(dir, "image.png"), Buffer.alloc(10 * 1024 * 1024 + 1));
   assert.throws(() => readImage("tmp/test.png"), /10 MiB/);
 });
@@ -126,5 +126,31 @@ test("does not return failed uploads or unexpected URLs as images", async () => 
       ),
       /HTTP 404|unexpected attachment URL/
     );
+  }
+});
+
+test("uploads videos with their media type and rejects mismatched extensions", async () => {
+  for (const [extension, contentType, bytes] of [
+    ["webm", "video/webm", Buffer.from("1a45dfa34282847765626d", "hex")],
+  ] as const) {
+    writeFileSync(join(dir, "image.png"), bytes);
+    let requests = 0;
+    await uploadImage(
+      { path: `tmp/recording.${extension}` },
+      async (input, options) => {
+        if (++requests === 1) {
+          return Response.json({ id: 42 });
+        }
+        assert.equal(
+          new URL(String(input)).searchParams.get("content_type"),
+          contentType
+        );
+        assert.deepEqual(options!.body, new Uint8Array(bytes));
+        return Response.json({ url });
+      }
+    );
+    assert.throws(() => readImage("tmp/renamed.png"), /do not match/);
+    writeFileSync(join(dir, "image.png"), png);
+    assert.throws(() => readImage(`tmp/fake.${extension}`), /do not match/);
   }
 });

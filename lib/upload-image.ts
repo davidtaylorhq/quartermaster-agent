@@ -3,15 +3,35 @@ import { posix } from "node:path";
 import { WORKSPACE } from "./runtime.ts";
 
 const MAX_BYTES = 10 * 1024 * 1024;
-const PNG_SIGNATURE = Buffer.from("89504e470d0a1a0a", "hex");
+const FORMATS = {
+  ".png": {
+    contentType: "image/png",
+    matches: (bytes: Buffer) =>
+      bytes.subarray(0, 8).equals(Buffer.from("89504e470d0a1a0a", "hex")),
+  },
+  ".webm": {
+    contentType: "video/webm",
+    matches: (bytes: Buffer) =>
+      bytes.subarray(0, 4).equals(Buffer.from("1a45dfa3", "hex")) &&
+      bytes.subarray(0, 4096).includes(Buffer.from("webm")),
+  },
+};
 
-export function readImage(path: unknown): { name: string; bytes: Buffer } {
+export function readImage(path: unknown): {
+  name: string;
+  bytes: Buffer;
+  contentType: string;
+} {
   if (typeof path !== "string" || !path || path.includes("\0")) {
-    throw new Error("path must name a PNG in /src");
+    throw new Error("path must name a PNG or WebM in /src");
   }
   const resolved = posix.resolve("/src", path);
-  if (!resolved.startsWith("/src/") || !resolved.endsWith(".png")) {
-    throw new Error("path must name a PNG in /src");
+  const extension = posix.extname(resolved).toLowerCase();
+  const format = Object.hasOwn(FORMATS, extension)
+    ? FORMATS[extension as keyof typeof FORMATS]
+    : undefined;
+  if (!resolved.startsWith("/src/") || !format) {
+    throw new Error("path must name a PNG or WebM in /src");
   }
   // Read inside the credential-free container: symlinks cannot reach runner files.
   const bytes = execFileSync(
@@ -32,12 +52,16 @@ export function readImage(path: unknown): { name: string; bytes: Buffer } {
     { timeout: 15_000, maxBuffer: MAX_BYTES + 1024 }
   );
   if (bytes.length > MAX_BYTES) {
-    throw new Error("Image exceeds the 10 MiB upload limit");
+    throw new Error("File exceeds the 10 MiB upload limit");
   }
-  if (!bytes.subarray(0, PNG_SIGNATURE.length).equals(PNG_SIGNATURE)) {
-    throw new Error("File is not a PNG");
+  if (!format.matches(bytes)) {
+    throw new Error("File contents do not match the extension");
   }
-  return { name: posix.basename(resolved), bytes };
+  return {
+    name: posix.basename(resolved),
+    bytes,
+    contentType: format.contentType,
+  };
 }
 
 export async function uploadImage(
@@ -48,13 +72,15 @@ export async function uploadImage(
   const token = process.env.ATTACHMENT_UPLOAD_TOKEN;
   if (!repo || !token) {
     throw new Error(
-      "Image uploads require attachment-repository and attachment-upload-token in the calling workflow"
+      "Media uploads require attachment-repository and attachment-upload-token in the calling workflow"
     );
   }
   if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo)) {
     throw new Error("attachment-repository must be owner/repo");
   }
-  const { name, bytes } = readImage((input as { path?: unknown } | null)?.path);
+  const { name, bytes, contentType } = readImage(
+    (input as { path?: unknown } | null)?.path
+  );
   const headers = {
     Authorization: `token ${token}`,
     Accept: "application/vnd.github+json",
@@ -75,7 +101,7 @@ export async function uploadImage(
   }
   const query = new URLSearchParams({
     name,
-    content_type: "image/png",
+    content_type: contentType,
     repository_id: String(id),
   });
   const response = await fetcher(
@@ -89,7 +115,7 @@ export async function uploadImage(
     }
   );
   if (!response.ok) {
-    throw new Error(`Image upload failed: HTTP ${response.status}`);
+    throw new Error(`Media upload failed: HTTP ${response.status}`);
   }
   const { url } = (await response.json()) as { url: string };
   if (

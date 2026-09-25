@@ -43,7 +43,7 @@ on:
         type: string
         default: ""
       attachment-repository:
-        description: "Optional owner/repo for PNG uploads. Public images should use a public repository."
+        description: "Optional owner/repo for PNG and WebM uploads. Public captures should use a public repository."
         type: string
         default: ""
       environments:
@@ -86,7 +86,7 @@ on:
           and contents, plus read on actions, checks and statuses.
         required: false
       attachment-upload-token:
-        description: "Fine-grained PAT with Contents write on attachment-repository; used only by the runner for image uploads."
+        description: "Fine-grained PAT with Contents write on attachment-repository; used only by the runner for media uploads."
         required: false
       app-private-key:
         required: false
