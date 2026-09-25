@@ -61,7 +61,6 @@ writeFileSync(
 
 mkdirSync(join(config, "agents"), { recursive: true });
 cpSync(source, agent, { recursive: true });
-cpSync(join(source, "skills"), join(config, "skills"), { recursive: true });
 if (environments.length) {
   appendFileSync(
     join(agent, "system.md"),

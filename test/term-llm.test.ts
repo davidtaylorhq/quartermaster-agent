@@ -41,9 +41,6 @@ test(
     cpSync(join(root, "agent"), join(config, "agents/workflow-agent"), {
       recursive: true,
     });
-    cpSync(join(root, "agent/skills"), join(config, "skills"), {
-      recursive: true,
-    });
     // PR creation uses SSH; workspace tools use the real MCP server.
     const stubs = join(dir, "stubs");
     mkdirSync(stubs);
@@ -146,7 +143,6 @@ exit 1
             'test -n "$BASH_VERSION" && test -z "$ANTHROPIC_API_KEY$GH_TOKEN" && cat example.txt',
         },
       ],
-      ["activate_skill", { name: "review" }],
       [
         "line_comment",
         { path: "example.txt", line: 1, body: "A review finding" },
@@ -201,6 +197,7 @@ exit 1
         );
         assert.ok(!names.includes("workspace_shell"));
         assert.ok(names.includes("open_pull_request"));
+        assert.ok(names.includes("line_comment"));
         assert.ok(!names.includes("shell"));
         const action = actions[next++];
         assert.ok(action, "unexpected model request");

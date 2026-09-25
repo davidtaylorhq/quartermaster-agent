@@ -7,6 +7,24 @@ skills: "all"
 tools:
   enabled: [update_plan]
   custom:
+    - name: line_comment
+      description: "Attach a finding to a changed line of the PR. Collected and published with the final reply when you finish."
+      script: scripts/line-comment.sh
+      call: json
+      input:
+        type: object
+        properties:
+          path:
+            type: string
+            description: "File path as it appears in the PR diff."
+          line:
+            type: integer
+            description: "Line number in the file after the change. Must be touched by the PR diff."
+          body:
+            type: string
+            description: "Markdown finding. Use a fenced suggestion block for replacement code."
+        required: [path, line, body]
+        additionalProperties: false
     - name: open_pull_request
       description: "Open a PR for an allowed branch already pushed to this repository, or return its existing open PR. Publishes immediately. Does not merge."
       script: scripts/open-pull-request

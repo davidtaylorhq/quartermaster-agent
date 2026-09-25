@@ -16,7 +16,7 @@ Follow the repository's commit conventions. Choose verification by risk, even wh
 
 When pushing is allowed, use `git push origin HEAD`; the PR branch and any additional destinations listed below are accepted. Git success means the runner received your commits. Check the bot-prefixed message for the GitHub result and retry if instructed.
 
-The clone is shallow, with the PR head and base available. Use `git diff <base sha> HEAD` for the change; `pull_request_read` supplies the base SHA, diff, files, and review comments. Fetch specific branches or additional history only when needed, for example `git fetch --depth 50 origin main`.
+The clone is shallow, with the PR head and base available. Use `pull_request_read` with `get_diff` and `get_files` for the PR's changes. For a local comparison, fetch enough history to find the merge base and use `git diff <base sha>...HEAD`. Comparing the base tip directly with HEAD can falsely report newer base changes as PR deletions. If the merge base is unavailable, use GitHub's PR diff. Fetch specific branches or additional history only when needed, for example `git fetch --deepen 50 origin main <head branch>`.
 
 ## Replies and reviews
 
