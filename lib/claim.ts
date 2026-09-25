@@ -8,7 +8,7 @@ const CLAIM = "eyes";
 const MACRO = process.env.MENTION!;
 // Older than this is a backlog, and a backlog should not be answered at once.
 const MAX_AGE_HOURS = Number(process.env.MAX_COMMENT_AGE_HOURS ?? "1");
-const WINDOW = Number(process.env.FOLLOWUP_WINDOW ?? "60");
+const WINDOW = Number(process.env.FOLLOWUP_WINDOW ?? "120");
 
 const repo = process.env.GITHUB_REPOSITORY!;
 const issue = process.env.ISSUE_NUMBER!;

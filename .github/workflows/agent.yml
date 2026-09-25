@@ -56,7 +56,7 @@ on:
       followup-window:
         description: "Seconds the sandbox is held open after replying, for a follow-up."
         type: number
-        default: 60
+        default: 120
       max-comment-age-hours:
         description: "Mentions older than this are left alone, so a backlog is never answered at once."
         type: number
