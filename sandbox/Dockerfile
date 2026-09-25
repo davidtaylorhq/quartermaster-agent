@@ -1,7 +1,7 @@
 # Shared runtime for the isolated model client and workspace tool server.
 FROM debian:stable-slim
 
-ARG TERM_LLM_VERSION=v0.9.55
+ARG TERM_LLM_VERSION=v0.9.57
 
 RUN apt-get update -qq \
  && apt-get install -y -qq --no-install-recommends \
