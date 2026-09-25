@@ -69,14 +69,15 @@ docker exec -u agent workflow-agent-sandbox sh -ec '
 # Image reads must stay inside the workspace even when the path is a symlink.
 node --experimental-strip-types --input-type=module <<'JS'
 import assert from "node:assert/strict";
-import { writeFileSync, symlinkSync } from "node:fs";
+import { writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { readImage } from "./lib/upload-image.ts";
 const bytes = Buffer.from("89504e470d0a1a0a00000000", "hex");
-writeFileSync(`${process.env.WORKTREE}/screenshot.png`, bytes);
+execFileSync("docker", ["exec", "-i", "-u", "agent", "workflow-agent-sandbox", "sh", "-c", "cat > /src/screenshot.png"], { input: bytes });
 assert.deepEqual(readImage("screenshot.png").bytes, bytes);
 const secret = `${process.env.RUNNER_TEMP}/runner-only.png`;
 writeFileSync(secret, bytes);
-symlinkSync(secret, `${process.env.WORKTREE}/escape.png`);
+execFileSync("docker", ["exec", "-u", "agent", "workflow-agent-sandbox", "ln", "-s", secret, "/src/escape.png"]);
 assert.throws(() => readImage("escape.png"));
 JS
 
